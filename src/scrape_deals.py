@@ -1,9 +1,11 @@
+import base64
 import json
 import logging
 import os
 from urllib.parse import urljoin
 
 import anthropic
+import httpx
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
@@ -32,6 +34,10 @@ DEAL_PAGE_KEYWORDS = [
 ]
 
 DEAL_SPECIFIC_KEYWORDS = [
+    "special",
+    "specials",
+    "deal",
+    "deals",
     "monday",
     "tuesday",
     "wednesday",
@@ -96,6 +102,71 @@ class DealFinder:
             logger.warning("Deal detail extraction failed.")
             json_string = "n/a"
         return json_string
+
+    def __extract_deal_details_from_image(self, image_url):
+        image_response = httpx.get(image_url)
+
+        # Extract the image content type from the image header
+        image_content_type = image_response.headers["content-type"]
+        if image_content_type not in ("image/png", "image/jpeg", "image/gif"):
+            logger.debug("invalid type")
+            return "n/a"
+
+        print(f"Image content type: {image_content_type}")
+        image_data = base64.standard_b64encode(httpx.get(image_url).content).decode(
+            "utf-8"
+        )
+
+        response = self.claude_client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=1024,
+            temperature=0.0,
+            system="You are a helpful assistant that extracts specific deal information from images. Your task is to identify the dish on special, the day it's offered, and its price. Provide only this information in a JSON format with keys 'dish', 'price', and 'day_of_week'. If any information is missing, use null for that key. If there are multiple deals, return a list of JSON dictionaries.",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": image_content_type,
+                                "data": image_data,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": "Extract the deal information from the image and return it in JSON format.",
+                        },
+                    ],
+                }
+            ],
+        )
+
+        # Try and save response as JSON
+        # If the JSON decoder returns an error, the deal probably doesn't exist, return n/a
+        try:
+            json_string = json.loads(response.content[0].text)
+        except json.decoder.JSONDecodeError as e:
+            logger.warning("Deal detail extraction failed.")
+            json_string = "n/a"
+
+        print(f"Image extraction result: {json_string}")
+        return json_string
+
+    def __has_large_image(self, page):
+        # Check for images larger than 500x500 pixels
+        # If it has, return the link
+        # If not, return null
+        large_image_src = page.evaluate("""
+            () => {
+                const images = document.querySelectorAll('img');
+                const largeImage = Array.from(images).find(img => img.width > 500 && img.height > 500);
+                return largeImage ? largeImage.src : null;
+            }
+        """)
+        print(f"IMAGE IN PAGE: {large_image_src}")
+        return large_image_src
 
     def find_deals_page(self):
         logger.info("Finding pages that could contain deals...")
@@ -164,7 +235,7 @@ class DealFinder:
                                     self.deals[href]["link_type"] = link_type
                                     self.deals[href]["link_text"] = text
                                 elif (
-                                    href.endswith(tuple(IMG_FILE_EXTENSIONS))
+                                    link_type == "image"
                                     and any(
                                         keyword in href.lower()
                                         for keyword in DEAL_SPECIFIC_KEYWORDS
@@ -177,6 +248,7 @@ class DealFinder:
                                     self.deals[href] = {}
                                     self.deals[href]["link_type"] = link_type
                                     self.deals[href]["link_text"] = text
+                                    self.deals[href]["image_link"] = href
 
                         except Exception as e:
                             continue
@@ -203,8 +275,25 @@ class DealFinder:
 
                 deal_info = self.__extract_deal_details_from_text(cleaned_text)
                 logger.debug(f"DEAL_INFO: {deal_info}")
-                # You might want to store or process the cleaned_text here
-                # For example: self.deals[link] = cleaned_text
+
+                # If there are any null entries in the deal info, look for more info
+                if any([val is None for val in deal_info.values()]):
+                    logger.debug("Missing deal info, trying to extract more info...")
+
+                    # Try and find a large image to extract deal info
+                    image_link = self.__has_large_image(page)
+                    if image_link:
+                        self.deals[link]["link_type"] = "image"
+                        self.deals[link]["image_link"] = image_link
+                        logger.debug("Image found, sending request to vision model")
+
+                        if deal_info != "n/a":
+                            deal_info = self.__extract_deal_details_from_image(
+                                image_link
+                            )
+                    else:
+                        logger.debug("No more methods available, giving up...")
+
                 self.deals[link]["text"] = cleaned_text
                 self.deals[link]["deal_info"] = deal_info
             finally:
@@ -219,10 +308,3 @@ class DealFinder:
             self.find_deal_details(link)
 
         return self.deals
-
-
-# {
-#  "https://www.tingalpahotel.com.au/tingalpa-hotel-blog/wing-it-monday/": "Wing It Monday - Tingalpa Hotel Wing It Monday Feb 28, 2024 Monday Dinner plans? Just WING it! Enjoy 1kg of our famous Chicken Wings for only $19.90 every Monday Night at the Tingalpa Hotel. Pick from fan-favourite flavours: Honey Soy BBQ Honey BBQ Chipotle Spicy Sriracha Famous Buffalo Reaper Extra Hot Can't decide? Pick up to 2 different flavours on every order! Book Now Book in for our next Wing It Monday Night special via our online table reservation system. We'll see you soon! Make a Reservation",
-#  "https://www.tingalpahotel.com.au/tingalpa-hotel-blog/thursday-parmy-night/": "Thursday Parmy Night - Tingalpa Hotel Thursday Parmy Night Feb 28, 2024 $19.90 THURSDAY PARMY NIGHT Are you a true-blue Parmy lover? Then you will be happy to hear that it\u2019s Parmy Appreciation Evening every Thursday night at the Tingalpa Hotel! If you haven\u2019t already, we recommend sinking your teeth into this Australian pub favourite. Now even better than ever at a great special price. Treat yourself to a delicious, mouth-watering Parmy, sides and sauce for only $19.90. If you have a big appetite, then upgrade to our GIANT Parmy! Book Now Craving a great feed at a special price? Book a table for our next Thursday Parmy Night. We'll see you soon! Make a Reservation",
-#  "https://www.tingalpahotel.com.au/tingalpa-hotel-blog/tuesday-rump-day/": "Tuesday Night Rump - Tingalpa Hotel Tuesday Night Rump Jul 15, 2021 Tuesday Night Rump Nothing is more satisfying than a mouth-watering steak at a great price! It's your steak, your way every Tuesday Night at Tingalpa Hotel. Customise your premium steak - choose your sides, sauce and your steak cooked just the way you like for only $19.90. There's even the choice to add your favourite toppers for a little extra! As a family-owned, Australian company we understand the importance of sourcing produce locally and do so wherever possible. It may cost a little extra but our produce does keep longer and arrives with minimum waste. We don\u2019t believe you can put a price on quality and the fresher the produce the more flavoursome it is. This is a proud and very powerful movement that the Hakfoort Group and Tingalpa Hotel support. We pride ourselves on our steak. Both lean and tender, this full flavoured beef is carefully chosen for breeding quality, food regine, fat and meat colour. All of these elements combined give diners the ultimate steak experience. Book or Order Ready to sink your teeth into a great steak? Tuesday's can get busy, so we encourage you to book online - or give us a call on (07) 3213 9660 to make a reservation or order takeaway. Make a Reservation Diner's Thoughts \"Wow, they don't even brag about their steaks, and they are definitely as good as \"Brisbane's Best.\" Casual pub atmosphere, awesome staff and great service. I've been holding off my review because I'd rather keep this place to myself.\" Michael Quinn Google Review"
-# }
