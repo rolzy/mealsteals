@@ -7,12 +7,16 @@ from urllib.parse import urljoin
 import anthropic
 import httpx
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Get the logger for this module
 logger = logging.getLogger(__name__)
 
-ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = "claude-3-haiku-20240307"
 
 DEAL_PAGE_KEYWORDS = [
