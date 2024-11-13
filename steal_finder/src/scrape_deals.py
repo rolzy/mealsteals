@@ -7,12 +7,17 @@ from urllib.parse import urljoin
 import anthropic
 import httpx
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Get the logger for this module
 logger = logging.getLogger(__name__)
 
-ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = "claude-3-haiku-20240307"
 
 DEAL_PAGE_KEYWORDS = [
@@ -100,7 +105,7 @@ class DealFinder:
             json_string = json.loads(response.content[0].text)
         except json.decoder.JSONDecodeError as e:
             logger.warning("Deal detail extraction failed.")
-            json_string = "n/a"
+            json_string = {"dish": None, "price": None, "day_of_week": None}
         return json_string
 
     def __extract_deal_details_from_image(self, image_url):
@@ -121,7 +126,7 @@ class DealFinder:
             model="claude-3-5-sonnet-20241022",
             max_tokens=1024,
             temperature=0.0,
-            system="You are a helpful assistant that extracts specific deal information from images. Your task is to identify the dish on special, the day it's offered, and its price. Provide only this information in a JSON format with keys 'dish', 'price', and 'day_of_week'. If any information is missing, use null for that key. If there are multiple deals, return a list of JSON dictionaries.",
+            system="You are a helpful assistant that extracts specific deal information from images. Your task is to identify the dish on special, the day it's offered, and its price. Provide only this information in a JSON format with keys 'dish', 'price', and 'day_of_week'. If you have any additional information, you can add a new 'note' key and write it down there. If any information is missing, use null for that key. If there are multiple deals, return a list of JSON dictionaries.",
             messages=[
                 {
                     "role": "user",
@@ -143,29 +148,42 @@ class DealFinder:
             ],
         )
 
+        logger.debug(f"Response from claude: {response.content[0].text}")
         # Try and save response as JSON
         # If the JSON decoder returns an error, the deal probably doesn't exist, return n/a
         try:
             json_string = json.loads(response.content[0].text)
         except json.decoder.JSONDecodeError as e:
             logger.warning("Deal detail extraction failed.")
-            json_string = "n/a"
+            json_string = {"dish": None, "price": None, "day_of_week": None}
 
         print(f"Image extraction result: {json_string}")
         return json_string
 
     def __has_large_image(self, page):
-        # Check for images larger than 500x500 pixels
-        # If it has, return the link
-        # If not, return null
+        # Find images that are large relative to the viewport size
         large_image_src = page.evaluate("""
             () => {
-                const images = document.querySelectorAll('img');
-                const largeImage = Array.from(images).find(img => img.width > 500 && img.height > 500);
+                const viewportWidth = window.innerWidth;
+                const viewportHeight = window.innerHeight;
+                const images = Array.from(document.querySelectorAll('img'));
+                
+                // Sort images by their area relative to the viewport
+                const sortedImages = images.sort((a, b) => {
+                    const areaA = (a.width * a.height) / (viewportWidth * viewportHeight);
+                    const areaB = (b.width * b.height) / (viewportWidth * viewportHeight);
+                    return areaB - areaA;
+                });
+
+                // Find the first image that's at least 30% of viewport width or height
+                const largeImage = sortedImages.find(img => 
+                    img.width / viewportWidth > 0.3 || img.height / viewportHeight > 0.3
+                );
+
                 return largeImage ? largeImage.src : null;
             }
         """)
-        print(f"IMAGE IN PAGE: {large_image_src}")
+        logger.debug(f"Largest image found: {large_image_src}")
         return large_image_src
 
     def find_deals_page(self):
@@ -187,7 +205,12 @@ class DealFinder:
                         # Skip social media and external links
                         if href and not any(
                             ext in href
-                            for ext in ["facebook.com", "instagram.com", "twitter.com"]
+                            for ext in [
+                                "facebook.com",
+                                "instagram.com",
+                                "twitter.com",
+                                "mailto",
+                            ]
                         ):
                             # Check if link text contains deal keywords
                             if any(keyword in text for keyword in DEAL_PAGE_KEYWORDS):
@@ -221,6 +244,7 @@ class DealFinder:
                                     "facebook.com",
                                     "instagram.com",
                                     "twitter.com",
+                                    "mailto",
                                 ]
                             ):
                                 # Check if link text contains deal keywords
@@ -254,7 +278,8 @@ class DealFinder:
                             continue
 
                 logger.debug(f"Second pass links: {json.dumps(self.deals, indent=2)}")
-
+            except PlaywrightTimeoutError:
+                logger.error(f"Timeout trying to reach {self.url}")
             finally:
                 browser.close()
 
@@ -296,6 +321,8 @@ class DealFinder:
 
                 self.deals[link]["text"] = cleaned_text
                 self.deals[link]["deal_info"] = deal_info
+            except PlaywrightTimeoutError:
+                logger.error(f"Timeout trying to reach {self.url}")
             finally:
                 browser.close()
 

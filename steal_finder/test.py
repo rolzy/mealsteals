@@ -2,7 +2,6 @@ import argparse
 import json
 import logging
 import sys
-from datetime import datetime
 
 from src import DealFinder
 
@@ -25,17 +24,17 @@ def setup_logging(log_level):
 def main(url, log_level):
     logger = setup_logging(log_level)
     logger.info(f"Finding deals in: {url}")
-    # Add your main logic here
 
     deal_finder = DealFinder(url)
     deals = deal_finder.find_deals()
+
     pretty_deals = json.dumps(deals, indent=2)
-    logger.info(f"Deals found:\n{pretty_deals}")
+    logger.info(f"Nearby pubs found:\n{pretty_deals}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Process a URL.")
-    parser.add_argument("url", help="The URL to process")
+    parser = argparse.ArgumentParser(description="Process a url")
+    parser.add_argument("address", help="The URL to use to find deals")
     parser.add_argument(
         "--log-level",
         default="INFO",
@@ -46,4 +45,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     log_level = getattr(logging, args.log_level.upper())
-    main(args.url, log_level)
+    main(args.address, log_level)

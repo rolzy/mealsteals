@@ -31,6 +31,23 @@ def test_find_deals_page_2():
     assert all([url in deal_urls for url in EXPECTED_URLS])
 
 
+@pytest.mark.slow
+def test_find_deals_page_3():
+    test_url = "https://www.manlydeck.com.au/"
+    deal_finder = DealFinder(test_url)
+    EXPECTED_URLS = [
+        "https://www.manlydeck.com.au/wp-content/uploads/2023/03/Tuesday-special.png",
+        "https://www.manlydeck.com.au/wp-content/uploads/2024/02/Wednesday.jpg",
+        "https://www.manlydeck.com.au/wp-content/uploads/2024/02/thursday.jpg",
+        "https://www.manlydeck.com.au/wp-content/uploads/2024/02/Friday-deals-sm.png",
+        "https://www.manlydeck.com.au/wp-content/uploads/2024/02/sunday-specials.jpg",
+        "https://www.manlydeck.com.au/wp-content/uploads/2024/09/deals-big.png",
+    ]
+    deal_finder.find_deals_page()
+    deal_urls = list(deal_finder.deals.keys())
+    assert all([url in deal_urls for url in EXPECTED_URLS])
+
+
 def test_extract_text_from_html():
     test_url = "https://www.tingalpahotel.com.au/"
     deal_finder = DealFinder(test_url)
@@ -77,7 +94,7 @@ def test_extract_deal_details_from_text_2():
 
 
 @pytest.mark.slow
-def test_extract_deal_details_from_image():
+def test_extract_deal_details_from_image_1():
     # Expect text without deal infomation to return n/a
     test_url = "https://pineapplehotel.com.au/wp-content/uploads/dinner-special-tri-folds-instagram1080.jpg"
     deal_finder = DealFinder(test_url)
