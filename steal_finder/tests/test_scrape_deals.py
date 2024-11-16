@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-
 from src import DealFinder
 
 path = Path(__file__).parent
@@ -80,6 +79,23 @@ def test_extract_deal_details_from_text_1():
 def test_extract_deal_details_from_text_2():
     # Expect text without deal infomation to return n/a
     test_url = "https://pineapplehotel.com.au/"
+    deal_finder = DealFinder(test_url)
+    with open(path / "data/test_extract_deal_details_from_text_input_2.txt", "r") as f:
+        input = f.read()
+    EXPECTED_DEAL = {
+        "dish": "Dinner Specials",
+        "price": None,
+        "day_of_week": "Sunday - Friday",
+    }
+
+    deal_info = deal_finder._DealFinder__extract_deal_details_from_text(input)
+    assert deal_info == EXPECTED_DEAL
+
+
+@pytest.mark.slow
+def test_extract_deal_details_from_text_3():
+    # Expect text without deal infomation to return n/a
+    test_url = "https://drink.brewdog.com/au/wings"
     deal_finder = DealFinder(test_url)
     with open(path / "data/test_extract_deal_details_from_text_input_2.txt", "r") as f:
         input = f.read()

@@ -8,6 +8,7 @@ import anthropic
 import httpx
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from playwright.sync_api import Error as PlaywrightGeneralError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
@@ -187,7 +188,7 @@ class DealFinder:
         return large_image_src
 
     def find_deals_page(self):
-        logger.info("Finding pages that could contain deals...")
+        logger.info(f"Finding pages that could contain deals for {self.url}...")
         deals_links = []
         with sync_playwright() as p:
             browser = p.chromium.launch()
@@ -280,6 +281,8 @@ class DealFinder:
                 logger.debug(f"Second pass links: {json.dumps(self.deals, indent=2)}")
             except PlaywrightTimeoutError:
                 logger.error(f"Timeout trying to reach {self.url}")
+            except PlaywrightGeneralError:
+                logger.error(f"Cannot reach {self.url}")
             finally:
                 browser.close()
 
@@ -307,7 +310,7 @@ class DealFinder:
 
                     # Try and find a large image to extract deal info
                     image_link = self.__has_large_image(page)
-                    if image_link:
+                    if image_link and image_link.startswith(("https", "http")):
                         self.deals[link]["link_type"] = "image"
                         self.deals[link]["image_link"] = image_link
                         logger.debug("Image found, sending request to vision model")
@@ -323,6 +326,8 @@ class DealFinder:
                 self.deals[link]["deal_info"] = deal_info
             except PlaywrightTimeoutError:
                 logger.error(f"Timeout trying to reach {self.url}")
+            except PlaywrightGeneralError:
+                logger.error(f"Cannot reach {self.url}")
             finally:
                 browser.close()
 
