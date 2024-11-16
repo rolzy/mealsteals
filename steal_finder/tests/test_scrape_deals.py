@@ -59,6 +59,18 @@ def test_extract_text_from_html():
     assert extracted_text == EXPECTED_TEXT
 
 
+def test_extract_text_from_html_2():
+    test_url = "https://www.brewdog.com/au/dogtap-brisbane"
+    deal_finder = DealFinder(test_url)
+    with open(path / "data/test_extract_text_from_html_2_input.html", "r") as f:
+        html = f.read()
+    with open(path / "data/test_extract_text_from_html_2_output.txt", "r") as f:
+        EXPECTED_TEXT = f.read().strip()
+
+    extracted_text = deal_finder._DealFinder__extract_text_from_html(html)
+    assert extracted_text == EXPECTED_TEXT
+
+
 @pytest.mark.slow
 def test_extract_deal_details_from_text_1():
     test_url = "https://www.tingalpahotel.com.au/"
@@ -97,12 +109,12 @@ def test_extract_deal_details_from_text_3():
     # Expect text without deal infomation to return n/a
     test_url = "https://drink.brewdog.com/au/wings"
     deal_finder = DealFinder(test_url)
-    with open(path / "data/test_extract_deal_details_from_text_input_2.txt", "r") as f:
+    with open(path / "data/test_extract_deal_details_from_text_input_3.txt", "r") as f:
         input = f.read()
     EXPECTED_DEAL = {
-        "dish": "Dinner Specials",
-        "price": None,
-        "day_of_week": "Sunday - Friday",
+        "dish": "Unlimited Wings",
+        "price": 30,
+        "day_of_week": "Wednesday",
     }
 
     deal_info = deal_finder._DealFinder__extract_deal_details_from_text(input)
@@ -158,8 +170,9 @@ def test_extract_deal_details_from_image_1():
         },
         {
             "day_of_week": "Friday",
-            "dish": "$1 wings (Spicy Buffalo or Smokey BBQ)",
-            "price": 1,
+            "dish": "wings",
+            "price": 1.0,
+            "note": "Available in Spicy Buffalo or Smokey BBQ",
         },
         {"day_of_week": "Sunday", "dish": "Roast of the day", "price": 18},
         {

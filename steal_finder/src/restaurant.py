@@ -1,11 +1,6 @@
-import json
 import logging
 from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Union
 
-from boto3.dynamodb.conditions import Key
-from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
 DYNAMODB_TABLE_NAME = "MealSteals-Restaurant-Table"

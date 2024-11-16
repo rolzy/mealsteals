@@ -37,7 +37,6 @@ def main(address, radius, log_level):
             pub.update_deals(deals)
 
     nearby_pubs_info = [pub.get_restaurant() for pub in nearby_pubs]
-    print(nearby_pubs_info)
     logger.info("Write deal info to DynamoDB")
     update_restaurants(nearby_pubs_info)
     pretty_deals = json.dumps(nearby_pubs_info, indent=2)
