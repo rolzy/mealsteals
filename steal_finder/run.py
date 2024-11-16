@@ -3,7 +3,7 @@ import json
 import logging
 import sys
 
-from src import DealFinder, find_pubs
+from src import DealFinder, find_pubs, update_restaurants
 
 
 def setup_logging(log_level):
@@ -21,25 +21,33 @@ def setup_logging(log_level):
     return logger
 
 
-def main(address, log_level):
+def main(address, radius, log_level):
     logger = setup_logging(log_level)
     logger.info(f"Finding deals in: {address}")
 
-    nearby_pubs = find_pubs(address)
+    nearby_pubs = find_pubs(address, radius)
+    if not nearby_pubs:
+        return
 
     for pub in nearby_pubs:
-        url = pub.get("website")
-        deal_finder = DealFinder(url)
-        deals = deal_finder.find_deals()
-        pub["deals"] = deals
+        if not pub.recently_updated():
+            url = pub.get_url()
+            deal_finder = DealFinder(url)
+            deals = deal_finder.find_deals()
+            pub.update_deals(deals)
 
-    pretty_deals = json.dumps(nearby_pubs, indent=2)
+    nearby_pubs_info = [pub.get_restaurant() for pub in nearby_pubs]
+    print(nearby_pubs_info)
+    logger.info("Write deal info to DynamoDB")
+    update_restaurants(nearby_pubs_info)
+    pretty_deals = json.dumps(nearby_pubs_info, indent=2)
     logger.info(f"Nearby pubs found:\n{pretty_deals}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process an address.")
     parser.add_argument("address", help="The address to use to find restaurants")
+    parser.add_argument("--radius", default=5000, help="Search radius, default 5km")
     parser.add_argument(
         "--log-level",
         default="INFO",
@@ -50,4 +58,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     log_level = getattr(logging, args.log_level.upper())
-    main(args.address, log_level)
+    main(args.address, args.radius, log_level)
