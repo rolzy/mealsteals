@@ -3,7 +3,7 @@ import json
 import logging
 import sys
 
-from src import DealFinder, write_deals
+from src import DealFinder
 
 
 def setup_logging(log_level):

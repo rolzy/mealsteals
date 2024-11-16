@@ -73,9 +73,37 @@ class DealFinder:
     def __extract_text_from_html(self, html_content):
         soup = BeautifulSoup(html_content, "html.parser")
 
-        # Remove unwanted elements
-        for element in soup(["script", "style", "svg", "header", "nav", "footer"]):
+        # Remove unwanted elements, including common cookie consent dialogs
+        for element in soup(
+            [
+                "script",
+                "style",
+                "svg",
+                "header",
+                "nav",
+                "footer",
+            ]
+        ):
             element.decompose()
+
+        # More specific selectors for cookie consent and GDPR-related elements
+        cookie_selectors = [
+            "div[class*='cookie' i]",
+            "div[id*='cookie' i]",
+            "div[class*='consent' i]",
+            "div[id*='consent' i]",
+            "div[class*='gdpr' i]",
+            "div[id*='gdpr' i]",
+            "div[aria-label*='cookie' i]",
+            "div[aria-label*='consent' i]",
+            "#cookieConsent",
+            "#gdprConsent",
+            ".cookie-banner",
+            ".consent-banner",
+        ]
+        for selector in cookie_selectors:
+            for element in soup.select(selector):
+                element.decompose()
 
         # Extract text from remaining content
         texts = soup.stripped_strings
@@ -188,7 +216,7 @@ class DealFinder:
         return large_image_src
 
     def find_deals_page(self):
-        logger.info(f"Finding pages that could contain deals for {self.url}...")
+        logger.info(f"Finding pages that could contain deals for {self.url}")
         deals_links = []
         with sync_playwright() as p:
             browser = p.chromium.launch()
