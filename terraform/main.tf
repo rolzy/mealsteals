@@ -1,18 +1,3 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.16"
-    }
-  }
-
-  required_version = ">= 1.2.0"
-}
-
-provider "aws" {
-  region = "ap-southeast-2"
-}
-
 resource "aws_dynamodb_table" "restaurants_table" {
   name                        = "MealSteals-Restaurant-Table"
   billing_mode                = "PAY_PER_REQUEST"
@@ -31,3 +16,11 @@ resource "aws_dynamodb_table" "restaurants_table" {
   }
 }
 
+resource "aws_secretsmanager_secret" "anthropic_api_key" {
+  name = "anthropic_api_key"
+}
+
+resource "aws_secretsmanager_secret_version" "anthropic_api_key_value" {
+  secret_id = aws_secretsmanager_secret.anthropic_api_key.id
+  secret_string = var.anthropic_api_key
+}
