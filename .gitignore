@@ -10,4 +10,4 @@ env/
 *.terraform.lock.hcl
 
 # Directories
-terraform/.terraform/
+**/.terraform
