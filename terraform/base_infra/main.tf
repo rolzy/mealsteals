@@ -24,3 +24,8 @@ resource "aws_secretsmanager_secret_version" "anthropic_api_key_value" {
   secret_id = aws_secretsmanager_secret.anthropic_api_key.id
   secret_string = var.anthropic_api_key
 }
+
+resource "aws_ecr_repository" "deal_scraper" {
+  name = "deal_scraper"
+  force_delete = true
+}
