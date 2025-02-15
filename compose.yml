@@ -24,6 +24,8 @@ services:
     build:
       context: ./dealfinder
       dockerfile: Dockerfile
+      secrets:
+        - pip_config
     ports:
       - "5000:5000"
     volumes:
@@ -63,4 +65,6 @@ networks:
 volumes:
   db-data:
 
-
+secrets:
+  pip_config:
+    file: /etc/pip.conf

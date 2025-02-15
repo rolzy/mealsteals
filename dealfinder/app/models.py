@@ -24,6 +24,22 @@ class Restaurant(db.Model):
     def __repr__(self):
         return f"<Restaurant: {self.name}>"
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "url": self.url,
+            "name": self.name,
+            "cuisine": self.cuisine,
+            "venue_type": self.venue_type,
+            "street_address": self.street_address,
+            "suburb": self.suburb,
+            "state": self.state,
+            "postcode": self.postcode,
+            "country": self.country,
+            "latitude": float(self.latitude),
+            "longitude": float(self.longitude),
+        }
+
 
 class Deal(db.Model):
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
@@ -45,3 +61,13 @@ class Deal(db.Model):
             f"DayOfWeek: {self.day_of_week}, "
             f"Notes: {self.note}>"
         )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "restaurant_id": self.restaurant_id,
+            "dish": self.dish,
+            "price": float(self.price) if self.price is not None else None,
+            "day_of_week": self.day_of_week,
+            "note": self.note,
+        }
