@@ -6,3 +6,4 @@ from .restaurants import (
     get_restaurants,
     update_restaurant,
 )
+from .search import search_restaurants
