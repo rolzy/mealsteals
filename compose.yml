@@ -1,14 +1,14 @@
 services:
-  db:
+  dealdb:
     image: postgres:16
-    container_name: mealsteals-dealfinder-db
+    container_name: mealsteals-dealDB
     restart: always
     volumes:
       - db-data:/var/lib/postgresql/data/
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=dealfinder
+      - POSTGRES_DB=dealdb
     ports:
       - "5432:5432"
     networks:
@@ -19,29 +19,28 @@ services:
       timeout: 5s
       retries: 5
 
-  api:
-    container_name: mealsteals-dealfinder-api
+  dealapi:
+    container_name: mealsteals-dealAPI
     build:
-      context: ./dealfinder
+      context: ./dealAPI
       dockerfile: Dockerfile
       secrets:
         - pip_config
     ports:
       - "5000:5000"
     volumes:
-      - ./dealfinder:/app
+      - ./dealAPI:/app
     environment:
       - ENVIRONMENT=dev
       - DATABASE_USER=postgres
       - DATABASE_PASS=password
-      - DATABASE_HOST=db
+      - DATABASE_HOST=dealdb
       - DATABASE_PORT=5432
-      - DATABASE_NAME=dealfinder
-    env_file: "./dealfinder/.env"
+      - DATABASE_NAME=dealdb
     networks:
       - app-network
     depends_on:
-      db:
+      dealdb:
         condition: service_healthy
   
   #  # Development Web build

@@ -4,7 +4,7 @@ from typing import Tuple, Union
 
 import googlemaps
 
-# Static Variables
+## Static Variables
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 SEARCH_KEYWORDS = ["pub restaurants"]
 TYPE_KEYWORDS = ["bar"]
@@ -41,7 +41,44 @@ def get_coordinates_from_address(address: str) -> Union[Tuple[float, float], Non
 
 def find_restaurants(
     address: str, search_radius: int = 5000
-) -> Union[list[dict], None]:
+) -> Union[list[dict], dict]:
+    """
+    Find restaurants near a given address using Google Maps API.
+
+    This function takes an address and a search radius, geocodes the address to get coordinates,
+    and then searches for restaurants within the specified radius. It filters the results based on
+    predefined keywords and types.
+
+    Args:
+        address (str): The address to search around. This can be a full address, city, or any
+                       location string that Google Maps can geocode.
+        search_radius (int, optional): The radius (in meters) around the address to search for
+                                       restaurants. Defaults to 5000 meters (5 km).
+
+    Returns:
+        Union[list[dict], None]: A list of dictionaries, where each dictionary contains details
+                                 about a restaurant found. Returns None if there was an error in
+                                 geocoding or if no restaurants were found. Each restaurant
+                                 dictionary includes:
+                                 - gmaps_id: Google Maps place ID
+                                 - url: Website of the restaurant
+                                 - name: Name of the restaurant
+                                 - venue_type: Types of the venue as per Google Maps
+                                 - open_hours: Opening hours of the restaurant
+                                 - street_address: Formatted address of the restaurant
+                                 - latitude: Latitude of the restaurant location
+                                 - longitude: Longitude of the restaurant location
+
+    Raises:
+        No exceptions are explicitly raised, but errors are logged:
+        - If the address cannot be geocoded
+        - If there's an error in the Google Maps API request
+        - If the 'next page' token is present (currently not implemented)
+
+    Note:
+        This function uses predefined SEARCH_KEYWORDS and TYPE_KEYWORDS to filter results.
+        It also requires a valid Google Maps API key to be set in the environment variables.
+    """
     coordinates = get_coordinates_from_address(address)
     if coordinates:
         latitude, longitude = coordinates
@@ -50,7 +87,10 @@ def find_restaurants(
         )
     else:
         logger.error(f"Unable to get coordinates for the address: {address}")
-        return None
+        return {
+            "Status": "Error",
+            "Message": "Unable to get coordinates for the address",
+        }
 
     restaurants = []
 
@@ -62,7 +102,10 @@ def find_restaurants(
         logger.debug(f"Next page exists? {next_page_exist}")
         if next_page_exist:
             logger.error("Next_page logic not implemented yet.")
-            return None
+            return {
+                "Status": "Error",
+                "Message": "gmaps Next_page logic not implemented yet.",
+            }
 
         for result in results["results"]:
             if all([keyword in result["types"] for keyword in TYPE_KEYWORDS]):
@@ -90,4 +133,11 @@ def find_restaurants(
                         f"Website data not found for {place_details.get('name')}"
                     )
 
+    return restaurants
+
+
+def lambda_handler(event, context):
+    address = event.get("address")
+    search_radius = event.get("search_radius")
+    restaurants = find_restaurants(address, search_radius)
     return restaurants

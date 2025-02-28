@@ -4,7 +4,7 @@ os.environ["DATABASE_USER"] = "postgres"
 os.environ["DATABASE_PASS"] = "password"
 os.environ["DATABASE_HOST"] = "localhost"
 os.environ["DATABASE_PORT"] = "5432"
-os.environ["DATABASE_NAME"] = "dealfinder"
+os.environ["DATABASE_NAME"] = "dealdb"
 
 import sqlalchemy as sa
 from app import app, db

@@ -1,30 +1,13 @@
-# Use official Python runtime as base image
-FROM python:3.11-slim
+FROM public.ecr.aws/lambda/python:3.12
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# Copy requirements.txt
+COPY requirements.txt ${LAMBDA_TASK_ROOT}
 
-# Set work directory
-WORKDIR /app
+# Install the dependencies
+RUN pip install -r requirements.txt
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    python3-dev \
-    postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
+# Copy function code
+COPY find_restaurants.py ${LAMBDA_TASK_ROOT}
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN --mount=type=secret,id=pip_config,dst=/etc/pip.conf pip install --no-cache-dir -r requirements.txt
-
-# Copy project files
-COPY . .
-
-# Expose port
-EXPOSE 5000
-
-# Start development server
-CMD flask db upgrade && flask run --host=0.0.0.0
+# Set the CMD to the handler 
+CMD [ "find_restaurants.lambda_handler" ]
