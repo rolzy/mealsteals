@@ -1,19 +1,44 @@
+import json
 import logging
 import os
 from typing import Tuple, Union
 
+import boto3
 import googlemaps
+from botocore.exceptions import ClientError
 
 ## Static Variables
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GOOGLE_API_KEY_SECRET_ARN = os.getenv("GOOGLE_API_KEY_SECRET_ARN")
 SEARCH_KEYWORDS = ["pub restaurants"]
 TYPE_KEYWORDS = ["bar"]
 TYPE_BLACKLIST = ["night_club"]
 
-gmaps = googlemaps.Client(key=GOOGLE_API_KEY)
-
 # Get the logger for this module
 logger = logging.getLogger(__name__)
+
+
+def get_secret():
+    session = boto3.Session()
+    client = session.client(service_name="secretsmanager", region_name="ap-southeast-2")
+    try:
+        get_secret_value_response = client.get_secret_value(
+            SecretId=GOOGLE_API_KEY_SECRET_ARN
+        )
+    except ClientError as e:
+        logger.error(f"Error fetching secret: {str(e)}")
+        raise e
+    else:
+        if "SecretString" in get_secret_value_response:
+            return get_secret_value_response["SecretString"]
+        else:
+            logger.error("Secret not found in the expected format")
+            raise ValueError("Secret not found in the expected format")
+
+
+# Fetch the Google API Key from Secrets Manager
+GOOGLE_API_KEY = get_secret()
+
+gmaps = googlemaps.Client(key=GOOGLE_API_KEY)
 
 
 def get_coordinates_from_address(address: str) -> Union[Tuple[float, float], None]:

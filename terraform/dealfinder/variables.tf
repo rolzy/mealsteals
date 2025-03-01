@@ -3,8 +3,8 @@ variable "dealfinder_image_uri" {
   type        = string
 }
 
-variable "google_api_key_secret_id" {
-  description = "Secret ID for the Google API key"
+variable "google_api_key_secret_arn" {
+  description = "Secret ARN for the Google API key"
   type        = string
 }
 

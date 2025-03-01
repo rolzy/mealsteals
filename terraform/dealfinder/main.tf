@@ -19,14 +19,32 @@ data "aws_iam_policy_document" "dealfinder_lambda_role_policy" {
       "sqs:DeleteMessage",
       "sqs:GetQueueAttributes",
       "sqs:GetQueueUrl",
+    ]
+    resources = [
+      aws_sqs_queue.dealfinder_queue.arn,
+      aws_sqs_queue.dealfinder_deadletter_queue.arn,
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
       "logs:CreateLogGroup",
       "logs:CreateLogStream",
       "logs:PutLogEvents",
     ]
     resources = [
-      aws_sqs_queue.dealfinder_queue.arn,
-      aws_sqs_queue.dealfinder_deadletter_queue.arn,
       aws_cloudwatch_log_group.dealfinder_lambda_log_group.arn,
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue",
+    ]
+    resources = [
+      var.google_api_key_secret_arn,
     ]
   }
 }
@@ -63,12 +81,12 @@ resource "aws_lambda_function" "dealfinder_lambda" {
 
   environment {
     variables = {
-      GOOGLE_API_KEY = local.google_api_key
+      GOOGLE_API_KEY_SECRET_ARN = var.google_api_key_secret_arn
     }
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.cloudwatch_logs_policy_attach,
+    aws_iam_role_policy_attachment.role_policy_attach,
     aws_cloudwatch_log_group.dealfinder_lambda_log_group,
   ]
 }
