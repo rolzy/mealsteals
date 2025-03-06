@@ -1,3 +1,4 @@
+import datetime
 from typing import Optional
 
 import sqlalchemy as sa
@@ -49,6 +50,9 @@ class Restaurant(PaginatedAPIMixin, db.Model):
     latitude: so.Mapped[float] = so.mapped_column(sa.DECIMAL(), index=True)
     longitude: so.Mapped[float] = so.mapped_column(sa.DECIMAL(), index=True)
     deals: so.WriteOnlyMapped["Deal"] = so.relationship(back_populates="restaurant")
+    deals_last_updated: so.Mapped[Optional[datetime.datetime]] = so.mapped_column(
+        sa.DateTime(timezone=True)
+    )
 
     def __repr__(self):
         return f"<Restaurant: {self.name}>"
@@ -89,38 +93,60 @@ class Restaurant(PaginatedAPIMixin, db.Model):
             "country",
             "latitude",
             "longitude",
+            "deals_last_updated",
         ]:
             if field in data:
                 setattr(self, field, data[field])
 
 
-class Deal(db.Model):
+class Deal(PaginatedAPIMixin, db.Model):
     id: so.Mapped[int] = so.mapped_column(primary_key=True)
     restaurant_id: so.Mapped[int] = so.mapped_column(
         sa.ForeignKey(Restaurant.id), index=True
     )
+    deal_hash: so.Mapped[str] = so.mapped_column(sa.String(), unique=True)
     restaurant: so.Mapped[Restaurant] = so.relationship(back_populates="deals")
     dish: so.Mapped[Optional[str]] = so.mapped_column(sa.String(), index=True)
     price: so.Mapped[Optional[float]] = so.mapped_column(sa.DECIMAL(), index=True)
-    day_of_week: so.Mapped[list[str]] = so.mapped_column(sa.ARRAY(sa.String()))
-    note: so.Mapped[str] = so.mapped_column(sa.String())
+    day_of_week: so.Mapped[Optional[list[str]]] = so.mapped_column(
+        sa.ARRAY(sa.String())
+    )
+    notes: so.Mapped[Optional[str]] = so.mapped_column(sa.String())
 
     def __repr__(self):
         return (
             f"<Deal {self.id}: "
             f"Restaurant: {self.restaurant_id}, "
+            f"Hash: {self.deal_hash}, "
             f"Dish: {self.dish}, "
             f"Price: {self.price}, "
             f"DayOfWeek: {self.day_of_week}, "
-            f"Notes: {self.note}>"
+            f"Notes: {self.notes}, "
         )
 
     def to_dict(self):
         return {
             "id": self.id,
             "restaurant_id": self.restaurant_id,
+            "hash": self.deal_hash,
             "dish": self.dish,
             "price": float(self.price) if self.price is not None else None,
             "day_of_week": self.day_of_week,
-            "note": self.note,
+            "notes": self.notes,
         }
+
+    def from_dict(self, data):
+        for field in [
+            "restaurant_id",
+            "deal_hash",
+            "dish",
+            "price",
+            "notes",
+        ]:
+            if field in data:
+                setattr(self, field, data[field])
+
+        for field in ["day_of_week"]:
+            if field in data:
+                if data[field]:
+                    setattr(self, field, data[field].split(","))
