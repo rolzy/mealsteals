@@ -32,11 +32,15 @@ services:
       - ./dealAPI:/app
     environment:
       - ENVIRONMENT=dev
+      - FLASK_DEBUG=1
       - DATABASE_USER=postgres
       - DATABASE_PASS=password
       - DATABASE_HOST=dealdb
       - DATABASE_PORT=5432
       - DATABASE_NAME=dealdb
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
     networks:
       - app-network
     depends_on:

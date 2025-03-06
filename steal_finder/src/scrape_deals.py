@@ -132,7 +132,7 @@ class DealFinder:
         # If the JSON decoder returns an error, the deal probably doesn't exist, return n/a
         try:
             json_string = json.loads(response.content[0].text)
-        except json.decoder.JSONDecodeError as e:
+        except json.decoder.JSONDecodeError:
             logger.warning("Deal detail extraction failed.")
             json_string = {"dish": None, "price": None, "day_of_week": None}
         return json_string
@@ -182,7 +182,7 @@ class DealFinder:
         # If the JSON decoder returns an error, the deal probably doesn't exist, return n/a
         try:
             json_string = json.loads(response.content[0].text)
-        except json.decoder.JSONDecodeError as e:
+        except json.decoder.JSONDecodeError:
             logger.warning("Deal detail extraction failed.")
             json_string = {"dish": None, "price": None, "day_of_week": None}
 
@@ -246,7 +246,7 @@ class DealFinder:
                                 logger.debug(f"Add {href} to first pass links")
                                 full_url = urljoin(self.url, href)
                                 deals_links.append(full_url)
-                    except Exception as e:
+                    except Exception:
                         continue
 
                 logger.debug(f"First pass links: {deals_links}")
@@ -303,7 +303,7 @@ class DealFinder:
                                     self.deals[href]["link_text"] = text
                                     self.deals[href]["image_link"] = href
 
-                        except Exception as e:
+                        except Exception:
                             continue
 
                 logger.debug(f"Second pass links: {json.dumps(self.deals, indent=2)}")

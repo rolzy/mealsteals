@@ -15,26 +15,11 @@ data "aws_iam_policy_document" "dealfinder_lambda_role_policy" {
   statement {
     effect = "Allow"
     actions = [
-      "sqs:ReceiveMessage",
-      "sqs:DeleteMessage",
-      "sqs:GetQueueAttributes",
-      "sqs:GetQueueUrl",
-    ]
-    resources = [
-      aws_sqs_queue.dealfinder_queue.arn,
-      aws_sqs_queue.dealfinder_deadletter_queue.arn,
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogGroup",
       "logs:CreateLogStream",
       "logs:PutLogEvents",
     ]
     resources = [
-      aws_cloudwatch_log_group.dealfinder_lambda_log_group.arn,
+      "${aws_cloudwatch_log_group.dealfinder_lambda_log_group.arn}:*"
     ]
   }
 
@@ -66,7 +51,7 @@ resource "aws_iam_role_policy_attachment" "role_policy_attach" {
 }
 
 resource "aws_cloudwatch_log_group" "dealfinder_lambda_log_group" {
-  name              = "/aws/lambda/${var.resource_prefix}-lambda-logs"
+  name              = "/aws/lambda/${var.resource_prefix}"
   retention_in_days = 14
 }
 
@@ -89,33 +74,4 @@ resource "aws_lambda_function" "dealfinder_lambda" {
     aws_iam_role_policy_attachment.role_policy_attach,
     aws_cloudwatch_log_group.dealfinder_lambda_log_group,
   ]
-}
-
-resource "aws_sqs_queue" "dealfinder_queue" {
-  name                      = "${var.resource_prefix}-queue"
-  message_retention_seconds = 86400
-  redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.dealfinder_deadletter_queue.arn
-    maxReceiveCount     = 4
-  })
-}
-
-resource "aws_sqs_queue" "dealfinder_deadletter_queue" {
-  name = "${var.resource_prefix}-deadletter-queue"
-}
-
-resource "aws_sqs_queue_redrive_allow_policy" "terraform_queue_redrive_allow_policy" {
-  queue_url = aws_sqs_queue.dealfinder_deadletter_queue.id
-
-  redrive_allow_policy = jsonencode({
-    redrivePermission = "byQueue",
-    sourceQueueArns   = [aws_sqs_queue.dealfinder_queue.arn]
-  })
-}
-
-resource "aws_lambda_event_source_mapping" "dealfinder_event_source_mapping" {
-  event_source_arn = aws_sqs_queue.dealfinder_queue.arn
-  enabled          = true
-  function_name    = aws_lambda_function.dealfinder_lambda.arn
-  batch_size       = 1
 }

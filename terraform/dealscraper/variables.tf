@@ -3,8 +3,8 @@ variable "dealscraper_image_uri" {
   type        = string
 }
 
-variable "anthropic_api_key_secret_id" {
-  description = "Secret ID for the Anthropic API key"
+variable "anthropic_api_key_secret_arn" {
+  description = "Secret ARN for the Anthropic API key"
   type        = string
 }
 

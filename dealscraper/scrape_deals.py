@@ -6,7 +6,9 @@ import sys
 from urllib.parse import urljoin
 
 import anthropic
+import boto3
 import httpx
+from botocore.exceptions import ClientError
 from bs4 import BeautifulSoup
 from playwright.sync_api import Error as PlaywrightGeneralError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -16,7 +18,7 @@ from playwright.sync_api import sync_playwright
 logger = logging.getLogger()
 logger.setLevel("INFO")
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+ANTHROPIC_API_KEY_SECRET_ARN = os.getenv("ANTHROPIC_API_KEY_SECRET_ARN")
 ANTHROPIC_MODEL = "claude-3-haiku-20240307"
 
 DEAL_PAGE_KEYWORDS = [
@@ -60,6 +62,28 @@ DEAL_SPECIFIC_KEYWORDS = [
 DEAL_SPECIFIC_BLACKLIST = ["steakhouse"]
 
 IMG_FILE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "svg"]
+
+
+def get_secret():
+    session = boto3.Session()
+    client = session.client(service_name="secretsmanager", region_name="ap-southeast-2")
+    try:
+        get_secret_value_response = client.get_secret_value(
+            SecretId=ANTHROPIC_API_KEY_SECRET_ARN
+        )
+    except ClientError as e:
+        logger.error(f"Error fetching secret: {str(e)}")
+        raise e
+    else:
+        if "SecretString" in get_secret_value_response:
+            return get_secret_value_response["SecretString"]
+        else:
+            logger.error("Secret not found in the expected format")
+            raise ValueError("Secret not found in the expected format")
+
+
+# Fetch the Google API Key from Secrets Manager
+ANTHROPIC_API_KEY = get_secret()
 
 
 class DealScraper:

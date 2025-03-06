@@ -19,14 +19,31 @@ data "aws_iam_policy_document" "dealscraper_lambda_role_policy" {
       "sqs:DeleteMessage",
       "sqs:GetQueueAttributes",
       "sqs:GetQueueUrl",
-      "logs:CreateLogGroup",
-      "logs:CreateLogStream",
-      "logs:PutLogEvents",
     ]
     resources = [
       aws_sqs_queue.dealscraper_queue.arn,
       aws_sqs_queue.dealscraper_deadletter_queue.arn,
-      aws_cloudwatch_log_group.dealscraper_lambda_log_group.arn,
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+    ]
+    resources = [
+      "${aws_cloudwatch_log_group.dealscraper_lambda_log_group.arn}/:*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue",
+    ]
+    resources = [
+      var.anthropic_api_key_secret_arn
     ]
   }
 }
@@ -48,7 +65,7 @@ resource "aws_iam_role_policy_attachment" "role_policy_attach" {
 }
 
 resource "aws_cloudwatch_log_group" "dealscraper_lambda_log_group" {
-  name              = "/aws/lambda/${var.resource_prefix}-lambda-logs"
+  name              = "/aws/lambda/${var.resource_prefix}"
   retention_in_days = 14
 }
 
@@ -63,12 +80,12 @@ resource "aws_lambda_function" "dealscraper_lambda" {
 
   environment {
     variables = {
-      ANTHROPIC_API_KEY = local.anthropic_api_key
+      ANTHROPIC_API_KEY_SECRET_ARN = var.anthropic_api_key_secret_arn
     }
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.cloudwatch_logs_policy_attach,
+    aws_iam_role_policy_attachment.role_policy_attach,
     aws_cloudwatch_log_group.dealscraper_lambda_log_group,
   ]
 }
