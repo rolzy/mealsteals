@@ -2,23 +2,23 @@ import base64
 import json
 import logging
 import os
+import sys
 from urllib.parse import urljoin
 
 import anthropic
+import boto3
 import httpx
+from botocore.exceptions import ClientError
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
 from playwright.sync_api import Error as PlaywrightGeneralError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
-# Load environment variables from .env file
-load_dotenv()
-
 # Get the logger for this module
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
+logger.setLevel("INFO")
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+ANTHROPIC_API_KEY_SECRET_ARN = os.getenv("ANTHROPIC_API_KEY_SECRET_ARN")
 ANTHROPIC_MODEL = "claude-3-haiku-20240307"
 
 DEAL_PAGE_KEYWORDS = [
@@ -64,10 +64,33 @@ DEAL_SPECIFIC_BLACKLIST = ["steakhouse"]
 IMG_FILE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "svg"]
 
 
-class DealFinder:
+def get_secret():
+    session = boto3.Session()
+    client = session.client(service_name="secretsmanager", region_name="ap-southeast-2")
+    try:
+        get_secret_value_response = client.get_secret_value(
+            SecretId=ANTHROPIC_API_KEY_SECRET_ARN
+        )
+    except ClientError as e:
+        logger.error(f"Error fetching secret: {str(e)}")
+        raise e
+    else:
+        if "SecretString" in get_secret_value_response:
+            return get_secret_value_response["SecretString"]
+        else:
+            logger.error("Secret not found in the expected format")
+            raise ValueError("Secret not found in the expected format")
+
+
+# Fetch the Google API Key from Secrets Manager
+ANTHROPIC_API_KEY = get_secret()
+
+
+class DealScraper:
     def __init__(self, url) -> None:
         self.url = url
         self.deals = {}
+
         self.claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
     def __extract_text_from_html(self, html_content):
@@ -146,7 +169,6 @@ class DealFinder:
             logger.debug("invalid type")
             return "n/a"
 
-        print(f"Image content type: {image_content_type}")
         image_data = base64.standard_b64encode(httpx.get(image_url).content).decode(
             "utf-8"
         )
@@ -186,7 +208,6 @@ class DealFinder:
             logger.warning("Deal detail extraction failed.")
             json_string = {"dish": None, "price": None, "day_of_week": None}
 
-        print(f"Image extraction result: {json_string}")
         return json_string
 
     def __has_large_image(self, page):
@@ -219,7 +240,9 @@ class DealFinder:
         logger.info(f"Finding pages that could contain deals for {self.url}")
         deals_links = []
         with sync_playwright() as p:
-            browser = p.chromium.launch()
+            browser = p.chromium.launch(
+                headless=True, args=["--disable-gpu", "--single-process"]
+            )
             page = browser.new_page()
 
             try:
@@ -317,7 +340,9 @@ class DealFinder:
     def find_deal_details(self, link):
         logger.info(f"Finding deal information in the page {link}")
         with sync_playwright() as p:
-            browser = p.chromium.launch()
+            browser = p.chromium.launch(
+                headless=True, args=["--disable-gpu", "--single-process"]
+            )
             page = browser.new_page()
 
             try:
@@ -368,3 +393,10 @@ class DealFinder:
             self.find_deal_details(link)
 
         return self.deals
+
+
+def handler(event, context):
+    url = event.get("url")
+    deal_finder = DealScraper(url)
+    deals = deal_finder.find_deals()
+    return deals

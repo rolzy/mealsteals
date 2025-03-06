@@ -1,0 +1,74 @@
+services:
+  dealdb:
+    image: postgres:16
+    container_name: mealsteals-dealDB
+    restart: always
+    volumes:
+      - db-data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=dealdb
+    ports:
+      - "5432:5432"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  dealapi:
+    container_name: mealsteals-dealAPI
+    build:
+      context: ./dealAPI
+      dockerfile: Dockerfile
+      secrets:
+        - pip_config
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./dealAPI:/app
+    environment:
+      - ENVIRONMENT=dev
+      - FLASK_DEBUG=1
+      - DATABASE_USER=postgres
+      - DATABASE_PASS=password
+      - DATABASE_HOST=dealdb
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=dealdb
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+    networks:
+      - app-network
+    depends_on:
+      dealdb:
+        condition: service_healthy
+  
+  #  # Development Web build
+  #  web:
+  #    container_name: web
+  #    build:
+  #      context: ./apps/web
+  #      dockerfile: Dockerfile
+  #    ports:
+  #      - "3000:3000"
+  #    volumes:
+  #      - ./apps/web:/app
+  #    environment:
+  #      - ENVIRONMENT=dev
+  #    networks:
+  #      - app-network
+  #
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db-data:
+
+secrets:
+  pip_config:
+    file: /etc/pip.conf
