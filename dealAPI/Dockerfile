@@ -21,7 +21,7 @@ COPY requirements.txt .
 RUN --mount=type=secret,id=pip_config,dst=/etc/pip.conf pip install --no-cache-dir -r requirements.txt
 
 # Copy project files
-COPY . .
+#COPY . .
 
 # Expose port
 EXPOSE 5000

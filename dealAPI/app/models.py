@@ -71,6 +71,7 @@ class Restaurant(PaginatedAPIMixin, db.Model):
             "country": self.country,
             "latitude": float(self.latitude),
             "longitude": float(self.longitude),
+            "deals_last_updated": self.deals_last_updated,
             "_links": {
                 "self": url_for("api.get_restaurant", id=self.id),
                 # "deals": url_for("api.get_deals", id=self.id),

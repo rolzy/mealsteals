@@ -47,21 +47,18 @@ services:
       dealdb:
         condition: service_healthy
   
-  #  # Development Web build
-  #  web:
-  #    container_name: web
-  #    build:
-  #      context: ./apps/web
-  #      dockerfile: Dockerfile
-  #    ports:
-  #      - "3000:3000"
-  #    volumes:
-  #      - ./apps/web:/app
-  #    environment:
-  #      - ENVIRONMENT=dev
-  #    networks:
-  #      - app-network
-  #
+  dealmapper:
+    container_name: mealsteals-dealMapper
+    build:
+      context: ./dealmapper
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./dealmapper:/app
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge
