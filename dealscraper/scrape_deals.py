@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+import traceback
 from urllib.parse import urljoin
 
 import anthropic
@@ -332,8 +333,13 @@ class DealScraper:
                 logger.debug(f"Second pass links: {json.dumps(self.deals, indent=2)}")
             except PlaywrightTimeoutError:
                 logger.error(f"Timeout trying to reach {self.url}")
+                logger.error(traceback.format_exc())
             except PlaywrightGeneralError:
                 logger.error(f"Cannot reach {self.url}")
+                logger.error(traceback.format_exc())
+            except Exception as e:
+                logger.error(f"Unexpected error: {str(e)}")
+                logger.error(traceback.format_exc())
             finally:
                 browser.close()
 

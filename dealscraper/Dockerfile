@@ -1,7 +1,7 @@
 # Define function directory
 ARG LAMBDA_TASK_ROOT="/function"
 
-FROM mcr.microsoft.com/playwright:v1.49.0-jammy AS build-image
+FROM mcr.microsoft.com/playwright:v1.50.0-jammy AS build-image
 
 # Install aws-lambda-cpp build dependencies
 RUN apt-get update && \
@@ -28,7 +28,7 @@ RUN pip install --target ${LAMBDA_TASK_ROOT} awslambdaric && pip install --targe
 COPY scrape_deals.py ${LAMBDA_TASK_ROOT}
 
 # Multi-stage build: grab a fresh copy of the base image
-FROM mcr.microsoft.com/playwright:v1.49.0-jammy
+FROM mcr.microsoft.com/playwright:v1.50.0-jammy
 
 # Include global arg in this stage of the build
 ARG LAMBDA_TASK_ROOT

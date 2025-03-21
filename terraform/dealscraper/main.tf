@@ -33,7 +33,7 @@ data "aws_iam_policy_document" "dealscraper_lambda_role_policy" {
       "logs:PutLogEvents",
     ]
     resources = [
-      "${aws_cloudwatch_log_group.dealscraper_lambda_log_group.arn}/:*"
+      "${aws_cloudwatch_log_group.dealscraper_lambda_log_group.arn}:*"
     ]
   }
 
