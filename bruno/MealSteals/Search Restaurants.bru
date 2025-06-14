@@ -1,0 +1,21 @@
+meta {
+  name: Search Restaurants
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://127.0.0.1:5000/search
+  body: json
+  auth: none
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "address": "4 Balnave Street, Wynnum West, 4178"
+  }
+}
