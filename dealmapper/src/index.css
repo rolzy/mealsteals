@@ -1,0 +1,59 @@
+.App {
+  padding: 0;
+}
+
+.Header {
+  border-bottom: 1px solid #ddd;
+}
+
+.Content {
+  margin-top: 10px;
+}
+
+.Sidebar {
+  width: 120px;
+  margin: 5px;
+  position: sticky;
+  top: 62px;
+  align-self: flex-start;
+  align-items: start;
+}
+
+.Sidebar .nav-item {
+  width: 100%;
+}
+
+.Sidebar a {
+  color: #444;
+}
+
+.Sidebar a:hover {
+  background-color: #eee;
+}
+
+.Sidebar a:visited {
+  color: #444;
+}
+
+.Sidebar .nav-item .active {
+  background-color: #def;
+}
+
+.Restaurant {
+  align-items: start;
+  padding-top: 5px;
+  border-bottom: 1px solid #eee;
+}
+
+.Restaurant:hover {
+  background-color: #f8f8f8;
+}
+
+.Restaurant a {
+  color: #14c;
+  text-decoration: none;
+}
+
+.Restaurant a:visited {
+  color: #14c;
+}

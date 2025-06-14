@@ -1,0 +1,15 @@
+meta {
+  name: Get Restaurants
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://localhost:5000/restaurants?per_page=70
+  body: none
+  auth: none
+}
+
+params:query {
+  per_page: 70
+}

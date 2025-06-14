@@ -33,7 +33,7 @@ data "aws_iam_policy_document" "dealscraper_lambda_role_policy" {
       "logs:PutLogEvents",
     ]
     resources = [
-      "${aws_cloudwatch_log_group.dealscraper_lambda_log_group.arn}/:*"
+      "${aws_cloudwatch_log_group.dealscraper_lambda_log_group.arn}:*"
     ]
   }
 
@@ -75,7 +75,7 @@ resource "aws_lambda_function" "dealscraper_lambda" {
   role          = aws_iam_role.dealscraper_lambda_role.arn
   package_type  = "Image"
   image_uri     = var.dealscraper_image_uri
-  memory_size   = 1024
+  memory_size   = 2048
   timeout       = 300
 
   environment {

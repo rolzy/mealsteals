@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+import traceback
 from urllib.parse import urljoin
 
 import anthropic
@@ -240,13 +241,15 @@ class DealScraper:
         logger.info(f"Finding pages that could contain deals for {self.url}")
         deals_links = []
         with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True, args=["--disable-gpu", "--single-process"]
+            browser = p.chromium.launch_persistent_context(
+                user_data_dir="/tmp/playwright",
+                headless=True,
+                args=["--disable-gpu", "--single-process"],
             )
             page = browser.new_page()
 
             try:
-                page.goto(self.url, wait_until="networkidle")
+                page.goto(self.url, wait_until="load")
 
                 # First pass: Look for obvious deals-related links
                 for link in page.get_by_role("link").all():
@@ -276,7 +279,7 @@ class DealScraper:
 
                 # Second pass: Get deal-specific links
                 for link in deals_links:
-                    page.goto(link, wait_until="networkidle")
+                    page.goto(link, wait_until="load")
 
                     # First pass: Look for obvious deals-related links
                     for link in page.get_by_role("link", include_hidden=True).all():
@@ -330,23 +333,33 @@ class DealScraper:
                             continue
 
                 logger.debug(f"Second pass links: {json.dumps(self.deals, indent=2)}")
-            except PlaywrightTimeoutError:
+            except PlaywrightTimeoutError as e:
                 logger.error(f"Timeout trying to reach {self.url}")
-            except PlaywrightGeneralError:
+                logger.error(traceback.format_exc())
+                raise Exception(f"Timeout error: {str(e)}") from e
+            except PlaywrightGeneralError as e:
                 logger.error(f"Cannot reach {self.url}")
+                logger.error(traceback.format_exc())
+                raise Exception(f"Playwright error: {str(e)}") from e
+            except Exception as e:
+                logger.error(f"Unexpected error: {str(e)}")
+                logger.error(traceback.format_exc())
+                raise Exception(f"Unexpected error: {str(e)}") from e
             finally:
                 browser.close()
 
     def find_deal_details(self, link):
         logger.info(f"Finding deal information in the page {link}")
         with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True, args=["--disable-gpu", "--single-process"]
+            browser = p.chromium.launch_persistent_context(
+                user_data_dir="/tmp/playwright",
+                headless=True,
+                args=["--disable-gpu", "--single-process"],
             )
             page = browser.new_page()
 
             try:
-                page.goto(link, wait_until="networkidle")
+                page.goto(link, wait_until="load")
 
                 html_content = page.content()
                 cleaned_text = self.__extract_text_from_html(html_content)
@@ -377,10 +390,18 @@ class DealScraper:
 
                 self.deals[link]["text"] = cleaned_text
                 self.deals[link]["deal_info"] = deal_info
-            except PlaywrightTimeoutError:
+            except PlaywrightTimeoutError as e:
                 logger.error(f"Timeout trying to reach {self.url}")
-            except PlaywrightGeneralError:
+                logger.error(traceback.format_exc())
+                raise Exception(f"Timeout error: {str(e)}") from e
+            except PlaywrightGeneralError as e:
                 logger.error(f"Cannot reach {self.url}")
+                logger.error(traceback.format_exc())
+                raise Exception(f"Playwright error: {str(e)}") from e
+            except Exception as e:
+                logger.error(f"Unexpected error: {str(e)}")
+                logger.error(traceback.format_exc())
+                raise Exception(f"Unexpected error: {str(e)}") from e
             finally:
                 browser.close()
 
@@ -398,5 +419,9 @@ class DealScraper:
 def handler(event, context):
     url = event.get("url")
     deal_finder = DealScraper(url)
-    deals = deal_finder.find_deals()
-    return deals
+    try:
+        deals = deal_finder.find_deals()
+        return {"statusCode": 200, "body": json.dumps(deals)}
+    except Exception as e:
+        logger.error(f"Error in Lambda handler: {str(e)}")
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
