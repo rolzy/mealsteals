@@ -247,7 +247,7 @@ class DealScraper:
             page = browser.new_page()
 
             try:
-                page.goto(self.url, wait_until="networkidle")
+                page.goto(self.url, wait_until="domcontentloaded")
 
                 # First pass: Look for obvious deals-related links
                 for link in page.get_by_role("link").all():
@@ -277,7 +277,7 @@ class DealScraper:
 
                 # Second pass: Get deal-specific links
                 for link in deals_links:
-                    page.goto(link, wait_until="networkidle")
+                    page.goto(link, wait_until="domcontentloaded")
 
                     # First pass: Look for obvious deals-related links
                     for link in page.get_by_role("link", include_hidden=True).all():
@@ -352,7 +352,7 @@ class DealScraper:
             page = browser.new_page()
 
             try:
-                page.goto(link, wait_until="networkidle")
+                page.goto(link, wait_until="domcontentloaded")
 
                 html_content = page.content()
                 cleaned_text = self.__extract_text_from_html(html_content)
