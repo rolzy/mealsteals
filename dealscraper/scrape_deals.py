@@ -331,15 +331,18 @@ class DealScraper:
                             continue
 
                 logger.debug(f"Second pass links: {json.dumps(self.deals, indent=2)}")
-            except PlaywrightTimeoutError:
+            except PlaywrightTimeoutError as e:
                 logger.error(f"Timeout trying to reach {self.url}")
                 logger.error(traceback.format_exc())
-            except PlaywrightGeneralError:
+                raise Exception(f"Timeout error: {str(e)}") from e
+            except PlaywrightGeneralError as e:
                 logger.error(f"Cannot reach {self.url}")
                 logger.error(traceback.format_exc())
+                raise Exception(f"Playwright error: {str(e)}") from e
             except Exception as e:
                 logger.error(f"Unexpected error: {str(e)}")
                 logger.error(traceback.format_exc())
+                raise Exception(f"Unexpected error: {str(e)}") from e
             finally:
                 browser.close()
 
@@ -383,10 +386,18 @@ class DealScraper:
 
                 self.deals[link]["text"] = cleaned_text
                 self.deals[link]["deal_info"] = deal_info
-            except PlaywrightTimeoutError:
+            except PlaywrightTimeoutError as e:
                 logger.error(f"Timeout trying to reach {self.url}")
-            except PlaywrightGeneralError:
+                logger.error(traceback.format_exc())
+                raise Exception(f"Timeout error: {str(e)}") from e
+            except PlaywrightGeneralError as e:
                 logger.error(f"Cannot reach {self.url}")
+                logger.error(traceback.format_exc())
+                raise Exception(f"Playwright error: {str(e)}") from e
+            except Exception as e:
+                logger.error(f"Unexpected error: {str(e)}")
+                logger.error(traceback.format_exc())
+                raise Exception(f"Unexpected error: {str(e)}") from e
             finally:
                 browser.close()
 
@@ -404,5 +415,9 @@ class DealScraper:
 def handler(event, context):
     url = event.get("url")
     deal_finder = DealScraper(url)
-    deals = deal_finder.find_deals()
-    return deals
+    try:
+        deals = deal_finder.find_deals()
+        return {"statusCode": 200, "body": json.dumps(deals)}
+    except Exception as e:
+        logger.error(f"Error in Lambda handler: {str(e)}")
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
