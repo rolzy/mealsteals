@@ -1,7 +1,7 @@
 # Define function directory
 ARG LAMBDA_TASK_ROOT="/function"
 
-FROM mcr.microsoft.com/playwright:v1.50.0-jammy AS build-image
+FROM mcr.microsoft.com/playwright:v1.53.0-jammy AS build-image
 
 # Install aws-lambda-cpp build dependencies
 RUN apt-get update && \

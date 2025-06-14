@@ -241,13 +241,15 @@ class DealScraper:
         logger.info(f"Finding pages that could contain deals for {self.url}")
         deals_links = []
         with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True, args=["--disable-gpu", "--single-process"]
+            browser = p.chromium.launch_persistent_context(
+                user_data_dir="/tmp/playwright",
+                headless=True,
+                args=["--disable-gpu", "--single-process"],
             )
             page = browser.new_page()
 
             try:
-                page.goto(self.url, wait_until="domcontentloaded")
+                page.goto(self.url, wait_until="load")
 
                 # First pass: Look for obvious deals-related links
                 for link in page.get_by_role("link").all():
@@ -277,7 +279,7 @@ class DealScraper:
 
                 # Second pass: Get deal-specific links
                 for link in deals_links:
-                    page.goto(link, wait_until="domcontentloaded")
+                    page.goto(link, wait_until="load")
 
                     # First pass: Look for obvious deals-related links
                     for link in page.get_by_role("link", include_hidden=True).all():
@@ -349,13 +351,15 @@ class DealScraper:
     def find_deal_details(self, link):
         logger.info(f"Finding deal information in the page {link}")
         with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True, args=["--disable-gpu", "--single-process"]
+            browser = p.chromium.launch_persistent_context(
+                user_data_dir="/tmp/playwright",
+                headless=True,
+                args=["--disable-gpu", "--single-process"],
             )
             page = browser.new_page()
 
             try:
-                page.goto(link, wait_until="domcontentloaded")
+                page.goto(link, wait_until="load")
 
                 html_content = page.content()
                 cleaned_text = self.__extract_text_from_html(html_content)
