@@ -1,46 +1,43 @@
 services:
   dealdb:
-    image: postgres:16
     container_name: mealsteals-dealDB
-    restart: always
-    volumes:
-      - db-data:/var/lib/postgresql/data/
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=dealdb
+    image: amazon/dynamodb-local:latest
+    command: -jar DynamoDBLocal.jar -sharedDb -dbPath ./data
     ports:
-      - "5432:5432"
+      - "8000:8000"
+    volumes:
+      - ./docker/dynamodb:/home/dynamodblocal/data
     networks:
       - app-network
+    user: root
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test:
+        [
+          "CMD-SHELL",
+          'if [ "$(curl -s -o /dev/null -I -w ''%{http_code}'' http://localhost:8000)" == "400" ]; then exit 0; else exit 1; fi',
+        ]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+    working_dir: /home/dynamodblocal
 
   dealapi:
     container_name: mealsteals-dealAPI
     build:
       context: ./dealAPI
       dockerfile: Dockerfile
-      secrets:
-        - pip_config
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./dealAPI:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload
     environment:
-      - ENVIRONMENT=dev
-      - FLASK_DEBUG=1
-      - DATABASE_USER=postgres
-      - DATABASE_PASS=password
-      - DATABASE_HOST=dealdb
-      - DATABASE_PORT=5432
-      - DATABASE_NAME=dealdb
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-ap-southeast-2}
+      - ENVIRONMENT=local
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./dealAPI/app:/code/app
+      - ./dealAPI/.venv:/code/.venv
     networks:
       - app-network
     depends_on:
