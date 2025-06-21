@@ -1,0 +1,15 @@
+meta {
+  name: Get all restaurants with postcode
+  type: http
+  seq: 4
+}
+
+get {
+  url: http://127.0.0.1:5000/api/v1/restaurants?postcode=4178
+  body: none
+  auth: none
+}
+
+params:query {
+  postcode: 4178
+}

@@ -1,30 +1,44 @@
-# Use official Python runtime as base image
-FROM python:3.11-slim
+# --------- Builder Stage ---------
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# Set environment variables for uv
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
 
-# Set work directory
+# Set working directory in container
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    python3-dev \
-    postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
+# Install dependencies first (for better layer caching)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN --mount=type=secret,id=pip_config,dst=/etc/pip.conf pip install --no-cache-dir -r requirements.txt
+# Copy application code
+COPY . /app
 
-# Copy project files
-#COPY . .
+# Install the project in non-editable mode
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-editable
 
-# Expose port
-EXPOSE 5000
+# Use Python 3.11 slim image as base
+FROM python:3.11-slim-bookworm
 
-# Start development server
-CMD flask db upgrade && flask run --host=0.0.0.0
+# Create a non-root user for security
+RUN groupadd --gid 1000 app \
+    && useradd --uid 1000 --gid app --shell /bin/bash --create-home app
+
+# Copy the virtual environment from the builder stage
+COPY --from=builder --chown=app:app /app/.venv /app/.venv
+
+# Ensure the virtual environment is in the PATH
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Switch to the non-root user
+USER app
+
+# Set the working directory
+WORKDIR /code
+
+# -------- replace with comment to run with gunicorn --------
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

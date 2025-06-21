@@ -1,0 +1,15 @@
+meta {
+  name: Get all restaurants that are open
+  type: http
+  seq: 6
+}
+
+get {
+  url: http://127.0.0.1:5000/api/v1/restaurants?is_open_now=True
+  body: none
+  auth: none
+}
+
+params:query {
+  is_open_now: True
+}

@@ -1,13 +1,17 @@
 meta {
   name: Search Restaurants
   type: http
-  seq: 4
+  seq: 2
 }
 
 post {
-  url: http://127.0.0.1:5000/search
+  url: http://127.0.0.1:5000/api/v1/restaurants/search?suburb=tingalpa
   body: json
   auth: none
+}
+
+params:query {
+  suburb: tingalpa
 }
 
 headers {
