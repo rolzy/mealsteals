@@ -1,0 +1,14 @@
+[project]
+name = "dealAPI"
+version = "0.0.1"
+description = "A fully Async API for serving restaurant and deals data for MealSteals"
+authors = [{ name = "Roland Thompson", email = "rolanditaru@gmail.com" }]
+requires-python = "~=3.11"
+dependencies = [
+    "boto3>=1.38.36",
+    "fastapi>=0.115.12",
+    "pynamodb>=6.1.0",
+    "pytz>=2025.2",
+    "timezonefinder>=6.5.9",
+    "uvicorn>=0.34.3",
+]

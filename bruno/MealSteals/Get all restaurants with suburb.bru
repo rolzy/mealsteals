@@ -1,0 +1,15 @@
+meta {
+  name: Get all restaurants with suburb
+  type: http
+  seq: 5
+}
+
+get {
+  url: http://127.0.0.1:5000/api/v1/restaurants?suburb=tingalpa
+  body: none
+  auth: none
+}
+
+params:query {
+  suburb: tingalpa
+}
