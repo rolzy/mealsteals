@@ -82,7 +82,7 @@ class RestaurantRepository:
             Restaurant schema if found, None otherwise
         """
         try:
-            restaurant_model = RestaurantModel.get(uuid)
+            restaurant_model = RestaurantModel.get(str(uuid))
 
             # Check if soft deleted
             if restaurant_model.is_deleted:
@@ -168,27 +168,30 @@ class RestaurantRepository:
 
         except DoesNotExist:
             return None
-    def update_with_restaurant_update(self, uuid: str, restaurant_data: RestaurantUpdate) -> Optional[Restaurant]:
+
+    def update_with_restaurant_update(
+        self, uuid: str, restaurant_data: RestaurantUpdate
+    ) -> Optional[Restaurant]:
         """
         Update an existing restaurant using RestaurantUpdate schema (preserves timezone)
-        
+
         Args:
             uuid: Restaurant UUID to update
             restaurant_data: New restaurant data (without timezone)
-            
+
         Returns:
             Updated Restaurant schema if successful, None if not found
-            
+
         Raises:
             Exception: If update fails
         """
         try:
             restaurant_model = RestaurantModel.get(uuid)
-            
+
             # Check if soft deleted
             if restaurant_model.is_deleted:
                 return None
-            
+
             # Update fields (preserve existing timezone)
             restaurant_model.gmaps_id = restaurant_data.gmaps_id
             restaurant_model.url = str(restaurant_data.url)
@@ -205,12 +208,12 @@ class RestaurantRepository:
             restaurant_model.postcode = restaurant_data.postcode
             restaurant_model.country = restaurant_data.country
             # Note: timezone is intentionally NOT updated to preserve existing value
-            
+
             # Save updates (this will automatically update updated_at)
             restaurant_model.save()
-            
+
             return self._model_to_schema(restaurant_model)
-            
+
         except DoesNotExist:
             return None
         except UpdateError as e:

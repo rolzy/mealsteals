@@ -1,9 +1,13 @@
 import base64
+import copy
 import json
 import logging
 import os
 import sys
 import traceback
+import uuid
+from datetime import datetime, timezone
+from decimal import Context, Decimal
 from urllib.parse import urljoin
 
 import anthropic
@@ -14,6 +18,7 @@ from bs4 import BeautifulSoup
 from playwright.sync_api import Error as PlaywrightGeneralError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
+from repository.deal_repository import save_deals
 
 # Get the logger for this module
 logger = logging.getLogger()
@@ -88,8 +93,9 @@ ANTHROPIC_API_KEY = get_secret()
 
 
 class DealScraper:
-    def __init__(self, url) -> None:
+    def __init__(self, url, restaurant_id) -> None:
         self.url = url
+        self.restaurant_id = restaurant_id
         self.deals = {}
 
         self.claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -143,7 +149,7 @@ class DealScraper:
             model=ANTHROPIC_MODEL,
             max_tokens=512,
             temperature=0.0,
-            system="You are a helpful assistant that extracts specific deal information from restaurant website text. Your task is to identify the dish on special, the day it's offered, and its price. Provide only this information in a JSON format with keys 'dish', 'price', and 'day_of_week'. If any information is missing, use null for that key.",
+            system="You are a helpful assistant that extracts specific deal information from restaurant website text. Your task is to identify the dish on special, the day it's offered, and its price. Provide only this information in a JSON format with keys 'dish', 'price', and 'day_of_week'. If any information is missing, use null for that key. For day_of_week, use lowercase day names like 'monday', 'tuesday', etc.",
             messages=[
                 {
                     "role": "user",
@@ -156,6 +162,7 @@ class DealScraper:
         # If the JSON decoder returns an error, the deal probably doesn't exist, return n/a
         try:
             json_string = json.loads(response.content[0].text)
+            logger.debug(f"Extracted deal from text: {json_string}")
         except json.decoder.JSONDecodeError:
             logger.warning("Deal detail extraction failed.")
             json_string = {"dish": None, "price": None, "day_of_week": None}
@@ -178,7 +185,7 @@ class DealScraper:
             model="claude-3-5-sonnet-20241022",
             max_tokens=1024,
             temperature=0.0,
-            system="You are a helpful assistant that extracts specific deal information from images. Your task is to identify the dish on special, the day it's offered, and its price. Provide only this information in a JSON format with keys 'dish', 'price', and 'day_of_week'. If you have any additional information, you can add a new 'note' key and write it down there. If any information is missing, use null for that key. If there are multiple deals, return a list of JSON dictionaries.",
+            system="You are a helpful assistant that extracts specific deal information from images. Your task is to identify the dish on special, the day it's offered, and its price. Provide only this information in a JSON format with keys 'dish', 'price', and 'day_of_week'. If you have any additional information, you can add a new 'notes' key and write it down there. If any information is missing, use null for that key. If there are multiple deals, return a list of JSON dictionaries. For day_of_week, use lowercase day names like 'monday', 'tuesday', etc.",
             messages=[
                 {
                     "role": "user",
@@ -205,6 +212,7 @@ class DealScraper:
         # If the JSON decoder returns an error, the deal probably doesn't exist, return n/a
         try:
             json_string = json.loads(response.content[0].text)
+            logger.debug(f"Extracted deal from image: {json_string}")
         except json.decoder.JSONDecodeError:
             logger.warning("Deal detail extraction failed.")
             json_string = {"dish": None, "price": None, "day_of_week": None}
@@ -413,15 +421,65 @@ class DealScraper:
         for link, _ in self.deals.items():
             self.find_deal_details(link)
 
+        # Save the deals to DynamoDB
+        try:
+            deals_to_save = []
+            for deal_details in self.deals.values():
+                deal_info = deal_details.get("deal_info")
+                if deal_info:
+                    # Handle case where Claude returns a list of deals
+                    if isinstance(deal_info, list):
+                        for deal in deal_info:
+                            if deal and deal.get("dish"):
+                                deals_to_save.append(deal)
+                    elif deal_info.get("dish"):
+                        deals_to_save.append(deal_info)
+
+            logger.info(
+                f"Found {len(deals_to_save)} deals to save for restaurant {self.restaurant_id}"
+            )
+            save_deals(deals_to_save, self.restaurant_id)
+        except Exception as e:
+            logger.error(f"Unexpected error while saving deal: {str(e)}")
+            logger.error(traceback.format_exc())
+
         return self.deals
 
 
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return json.JSONEncoder.default(self, obj)
+
+
 def handler(event, context):
+    # Extract event details from SQS payload
+    if "Records" in event:
+        # If the event is from SQS, extract the first record
+        record = event["Records"][0]
+        event = json.loads(record["body"])
+
+    logger.info(f"Received event: {json.dumps(event)}")
+
     url = event.get("url")
-    deal_finder = DealScraper(url)
+    restaurant_id = event.get("restaurant_id")
+
+    deal_finder = DealScraper(url, restaurant_id)
     try:
-        deals = deal_finder.find_deals()
-        return {"statusCode": 200, "body": json.dumps(deals)}
+        deals_data = deal_finder.find_deals()
+
+        return {
+            "statusCode": 200,
+            "body": json.dumps(
+                {"message": "Deals saved successfully", "deals": deals_data},
+                cls=DecimalEncoder,
+            ),
+        }
     except Exception as e:
         logger.error(f"Error in Lambda handler: {str(e)}")
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        logger.error(traceback.format_exc())
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)}, cls=DecimalEncoder),
+        }

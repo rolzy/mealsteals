@@ -1,7 +1,7 @@
 # Define function directory
 ARG LAMBDA_TASK_ROOT="/function"
 
-FROM mcr.microsoft.com/playwright:v1.53.0-jammy AS build-image
+FROM mcr.microsoft.com/playwright:v1.50.0-jammy AS build-image
 
 # Install aws-lambda-cpp build dependencies
 RUN apt-get update && \
@@ -25,6 +25,7 @@ COPY requirements.txt ${LAMBDA_TASK_ROOT}
 # Install the specified packages
 RUN pip install --target ${LAMBDA_TASK_ROOT} awslambdaric && pip install --target ${LAMBDA_TASK_ROOT} -r ${LAMBDA_TASK_ROOT}/requirements.txt
 
+COPY repository/ ${LAMBDA_TASK_ROOT}/repository
 COPY scrape_deals.py ${LAMBDA_TASK_ROOT}
 
 # Multi-stage build: grab a fresh copy of the base image

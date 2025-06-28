@@ -7,7 +7,13 @@ import boto3
 from ..core.exceptions.http_exceptions import InternalServerErrorException
 from ..core.logging import get_logger
 from ..repositories.restaurant_repository import RestaurantRepository
-from ..schemas.restaurant import GoogleMapsRestaurantData, Restaurant, RestaurantCreate, RestaurantUpdate
+from ..services.queue_service import QueueService
+from ..schemas.restaurant import (
+    GoogleMapsRestaurantData,
+    Restaurant,
+    RestaurantCreate,
+    RestaurantUpdate,
+)
 
 logger = get_logger(__name__)
 
@@ -18,6 +24,7 @@ class RestaurantService:
         try:
             self.lambda_client = boto3.client("lambda", region_name="ap-southeast-2")
             self.restaurant_repo = RestaurantRepository()
+            self.queue_service = QueueService()
             logger.info("RestaurantService initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize RestaurantService: {str(e)}")
@@ -587,7 +594,9 @@ class RestaurantService:
 
                     # Upsert restaurant directly from Google Maps data
                     # This will automatically decide whether to create or update
-                    restaurant, was_created = self.upsert_restaurant_from_gmaps(gmaps_restaurant)
+                    restaurant, was_created = self.upsert_restaurant_from_gmaps(
+                        gmaps_restaurant
+                    )
 
                     if was_created:
                         restaurants_created += 1
@@ -700,6 +709,7 @@ class RestaurantService:
         """
         Create or update restaurant from Google Maps data
         Only calculates timezone for new restaurants
+        Automatically triggers deal scraping for new restaurants
 
         Args:
             gmaps_data: Google Maps restaurant data
@@ -707,12 +717,16 @@ class RestaurantService:
         Returns:
             Tuple of (Restaurant, was_created: bool)
         """
-        logger.info(f"Upserting restaurant from Google Maps: {gmaps_data.name} (gmaps_id: {gmaps_data.gmaps_id})")
-        
+        logger.info(
+            f"Upserting restaurant from Google Maps: {gmaps_data.name} (gmaps_id: {gmaps_data.gmaps_id})"
+        )
+
         try:
             # Check if restaurant already exists by gmaps_id
-            existing_restaurant = self.restaurant_repo.get_by_gmaps_id(gmaps_data.gmaps_id)
-            
+            existing_restaurant = self.restaurant_repo.get_by_gmaps_id(
+                gmaps_data.gmaps_id
+            )
+
             if existing_restaurant:
                 # Restaurant exists - update without changing timezone
                 logger.debug(f"Restaurant exists, updating: {gmaps_data.name}")
@@ -721,7 +735,9 @@ class RestaurantService:
                     str(existing_restaurant.uuid), restaurant_update
                 )
                 if updated_restaurant:
-                    logger.info(f"Successfully updated restaurant: {updated_restaurant.name}")
+                    logger.info(
+                        f"Successfully updated restaurant: {updated_restaurant.name}"
+                    )
                     return updated_restaurant, False
                 else:
                     raise Exception("Update operation returned None")
@@ -730,26 +746,75 @@ class RestaurantService:
                 logger.debug(f"Restaurant doesn't exist, creating: {gmaps_data.name}")
                 restaurant_create = self._gmaps_to_restaurant_create(gmaps_data)
                 new_restaurant = self.restaurant_repo.create(restaurant_create)
-                logger.info(f"Successfully created restaurant: {new_restaurant.name} (UUID: {new_restaurant.uuid})")
-                return new_restaurant, True
+                logger.info(
+                    f"Successfully created restaurant: {new_restaurant.name} (UUID: {new_restaurant.uuid})"
+                )
                 
+                # Queue deal scraping for new restaurant (async, non-blocking)
+                self._queue_deal_scraping_async(new_restaurant.uuid, str(new_restaurant.url))
+                
+                return new_restaurant, True
+
         except Exception as e:
             logger.error(f"Failed to upsert restaurant '{gmaps_data.name}': {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 
-    def _gmaps_to_restaurant_create(self, gmaps_data: GoogleMapsRestaurantData) -> RestaurantCreate:
+    def _queue_deal_scraping_async(self, restaurant_id, restaurant_url):
+        """
+        Queue deal scraping job for a restaurant (non-blocking)
+        
+        Args:
+            restaurant_id: UUID of the restaurant
+            restaurant_url: URL of the restaurant website
+        """
+        try:
+            # Use asyncio to run the async queue method
+            import asyncio
+            
+            # Try to get the current event loop, create one if it doesn't exist
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If loop is already running, create a task
+                    asyncio.create_task(
+                        self.queue_service.queue_deal_scraping_job(restaurant_id, restaurant_url)
+                    )
+                else:
+                    # If loop is not running, run until complete
+                    loop.run_until_complete(
+                        self.queue_service.queue_deal_scraping_job(restaurant_id, restaurant_url)
+                    )
+            except RuntimeError:
+                # No event loop exists, create a new one
+                asyncio.run(
+                    self.queue_service.queue_deal_scraping_job(restaurant_id, restaurant_url)
+                )
+                
+            logger.info(f"Queued deal scraping job for restaurant {restaurant_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to queue deal scraping for restaurant {restaurant_id}: {str(e)}")
+            # Don't fail restaurant creation if deal scraping queueing fails
+
+    def _gmaps_to_restaurant_create(
+        self, gmaps_data: GoogleMapsRestaurantData
+    ) -> RestaurantCreate:
         """
         Convert Google Maps data to RestaurantCreate schema (with timezone calculation)
         Only used when creating new restaurants
         """
-        logger.debug(f"Converting Google Maps data to RestaurantCreate for: {gmaps_data.name}")
+        logger.debug(
+            f"Converting Google Maps data to RestaurantCreate for: {gmaps_data.name}"
+        )
         try:
             # Parse address components from street_address
             address_components = self._parse_street_address(gmaps_data.street_address)
-            
+
             # Calculate timezone from coordinates (only for new restaurants)
-            timezone = self._calculate_timezone(gmaps_data.latitude, gmaps_data.longitude)
+            timezone = self._calculate_timezone(
+                gmaps_data.latitude, gmaps_data.longitude
+            )
 
             result = RestaurantCreate(
                 gmaps_id=gmaps_data.gmaps_id,
@@ -767,19 +832,27 @@ class RestaurantService:
                 country=address_components.get("country"),
                 timezone=timezone,
             )
-            logger.debug(f"Successfully converted data for creation: {result.name} (timezone: {result.timezone})")
+            logger.debug(
+                f"Successfully converted data for creation: {result.name} (timezone: {result.timezone})"
+            )
             return result
         except Exception as e:
-            logger.error(f"Failed to convert Google Maps data for creation '{gmaps_data.name}': {str(e)}")
+            logger.error(
+                f"Failed to convert Google Maps data for creation '{gmaps_data.name}': {str(e)}"
+            )
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 
-    def _gmaps_to_restaurant_update(self, gmaps_data: GoogleMapsRestaurantData) -> RestaurantUpdate:
+    def _gmaps_to_restaurant_update(
+        self, gmaps_data: GoogleMapsRestaurantData
+    ) -> RestaurantUpdate:
         """
         Convert Google Maps data to RestaurantUpdate schema (without timezone calculation)
         Only used when updating existing restaurants
         """
-        logger.debug(f"Converting Google Maps data to RestaurantUpdate for: {gmaps_data.name}")
+        logger.debug(
+            f"Converting Google Maps data to RestaurantUpdate for: {gmaps_data.name}"
+        )
         try:
             # Parse address components from street_address
             address_components = self._parse_street_address(gmaps_data.street_address)
@@ -803,7 +876,9 @@ class RestaurantService:
             logger.debug(f"Successfully converted data for update: {result.name}")
             return result
         except Exception as e:
-            logger.error(f"Failed to convert Google Maps data for update '{gmaps_data.name}': {str(e)}")
+            logger.error(
+                f"Failed to convert Google Maps data for update '{gmaps_data.name}': {str(e)}"
+            )
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 
@@ -1116,9 +1191,11 @@ class RestaurantService:
         try:
             # Parse address components from street_address
             address_components = self._parse_street_address(gmaps_data.street_address)
-            
+
             # Calculate timezone from coordinates
-            timezone = self._calculate_timezone(gmaps_data.latitude, gmaps_data.longitude)
+            timezone = self._calculate_timezone(
+                gmaps_data.latitude, gmaps_data.longitude
+            )
 
             result = RestaurantCreate(
                 gmaps_id=gmaps_data.gmaps_id,

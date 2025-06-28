@@ -46,6 +46,19 @@ data "aws_iam_policy_document" "dealscraper_lambda_role_policy" {
       var.anthropic_api_key_secret_arn
     ]
   }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "dynamodb:BatchWriteItem",
+      "dynamodb:PutItem",
+      "dynamodb:Query",
+    ]
+    resources = [
+      "arn:aws:dynamodb:ap-southeast-2:700723066985:table/deals",
+      "arn:aws:dynamodb:ap-southeast-2:700723066985:table/deals/index/restaurant-id-index"
+    ]
+  }
 }
 
 resource "aws_iam_policy" "dealscraper_lambda_role_policy" {
