@@ -1,8 +1,12 @@
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
+
+# Import only for type checking to avoid circular imports
+if TYPE_CHECKING:
+    from .deal import Deal
 
 
 class RestaurantBase(BaseModel):

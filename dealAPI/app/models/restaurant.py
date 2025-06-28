@@ -37,8 +37,8 @@ class RestaurantModel(Model):
         table_name = os.getenv("RESTAURANT_TABLE_NAME", "restaurants")
         region = os.getenv("AWS_DEFAULT_REGION", "ap-southeast-2")
         # Use local DynamoDB if running locally
-        if os.getenv("ENVIRONMENT") == "local":
-            host = "http://dealdb:8000"
+        # if os.getenv("ENVIRONMENT") == "local":
+        #    host = "http://dealdb:8000"
 
     # Primary key
     uuid = UnicodeAttribute(hash_key=True, default_for_new=lambda: str(uuid4()))
@@ -59,7 +59,9 @@ class RestaurantModel(Model):
     state = UnicodeAttribute(null=True)
     postcode = UnicodeAttribute(null=True)
     country = UnicodeAttribute(null=True)
-    timezone = UnicodeAttribute(null=True)  # Store timezone string (e.g., "Australia/Sydney")
+    timezone = UnicodeAttribute(
+        null=True
+    )  # Store timezone string (e.g., "Australia/Sydney")
 
     # Audit fields
     created_at = UTCDateTimeAttribute(default_for_new=datetime.utcnow)

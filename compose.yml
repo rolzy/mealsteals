@@ -33,6 +33,9 @@ services:
       - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
       - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-ap-southeast-2}
       - ENVIRONMENT=local
+      - RESTAURANT_TABLE_NAME=${RESTAURANT_TABLE_NAME:-restaurants}
+      - DEAL_TABLE_NAME=${DEAL_TABLE_NAME:-deals}
+      - DEAL_SCRAPING_QUEUE_URL=${DEAL_SCRAPING_QUEUE_URL:-https://sqs.ap-southeast-2.amazonaws.com/700723066985/mealsteals-dealscraper-queue}
     ports:
       - "5000:5000"
     volumes:
