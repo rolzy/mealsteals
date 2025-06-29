@@ -1,0 +1,189 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'MealSteals DealScraper Lambda function infrastructure with SQS integration'
+
+Parameters:
+  DealScraperImageUri:
+    Type: String
+    Description: 'Image URI for the DealScraper docker image'
+  
+  AnthropicApiKeySecretArn:
+    Type: String
+    Description: 'Secret ARN for the Anthropic API key'
+    Default: ''
+  
+  ResourcePrefix:
+    Type: String
+    Description: 'Resource prefix for the dealscraper module'
+    Default: 'mealsteals-dealscraper'
+
+Conditions:
+  # Use imported secret ARN if AnthropicApiKeySecretArn is not provided
+  UseImportedSecret: !Equals [!Ref AnthropicApiKeySecretArn, '']
+
+Resources:
+  # SQS Dead Letter Queue (must be created first)
+  DealScraperDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ResourcePrefix}-deadletter-queue'
+      MessageRetentionPeriod: 1209600  # 14 days
+      Tags:
+        - Key: 'Project'
+          Value: 'MealSteals'
+        - Key: 'Component'
+          Value: 'DealScraper'
+    DeletionPolicy: Delete
+
+  # SQS Main Queue with Dead Letter Queue configuration
+  DealScraperQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ResourcePrefix}-queue'
+      MessageRetentionPeriod: 86400  # 1 day
+      VisibilityTimeout: 300  # 5 minutes (same as Lambda timeout)
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DealScraperDeadLetterQueue.Arn
+        maxReceiveCount: 4
+      Tags:
+        - Key: 'Project'
+          Value: 'MealSteals'
+        - Key: 'Component'
+          Value: 'DealScraper'
+    DeletionPolicy: Delete
+
+  # SQS Redrive Allow Policy for Dead Letter Queue
+  DealScraperDeadLetterQueueRedrivePolicy:
+    Type: AWS::SQS::QueueInlinePolicy
+    Properties:
+      Queue: !Ref DealScraperDeadLetterQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sqs.amazonaws.com
+            Action: 'sqs:SendMessage'
+            Resource: !GetAtt DealScraperDeadLetterQueue.Arn
+            Condition:
+              ArnEquals:
+                'aws:SourceArn': !GetAtt DealScraperQueue.Arn
+
+  # CloudWatch Log Group for Lambda function
+  DealScraperLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ResourcePrefix}'
+      RetentionInDays: 14
+    DeletionPolicy: Delete
+
+  # IAM Policy for Lambda execution
+  DealScraperLambdaRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub '${ResourcePrefix}-lambda-role-policy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # SQS permissions
+          - Effect: Allow
+            Action:
+              - 'sqs:ReceiveMessage'
+              - 'sqs:DeleteMessage'
+              - 'sqs:GetQueueAttributes'
+              - 'sqs:GetQueueUrl'
+            Resource:
+              - !GetAtt DealScraperQueue.Arn
+              - !GetAtt DealScraperDeadLetterQueue.Arn
+          # CloudWatch Logs permissions
+          - Effect: Allow
+            Action:
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Resource: !Sub '${DealScraperLambdaLogGroup.Arn}:*'
+          # Secrets Manager permissions
+          - Effect: Allow
+            Action:
+              - 'secretsmanager:GetSecretValue'
+            Resource: !If
+              - UseImportedSecret
+              - !ImportValue 'mealsteals-base-infra-AnthropicApiKeySecretArn'
+              - !Ref AnthropicApiKeySecretArn
+          # DynamoDB permissions
+          - Effect: Allow
+            Action:
+              - 'dynamodb:BatchWriteItem'
+              - 'dynamodb:PutItem'
+              - 'dynamodb:Query'
+            Resource:
+              - !ImportValue 'mealsteals-dealdb-DealsTableArn'
+              - !Sub 
+                - '${DealsTableArn}/index/restaurant-id-index'
+                - DealsTableArn: !ImportValue 'mealsteals-dealdb-DealsTableArn'
+      Roles:
+        - !Ref DealScraperLambdaRole
+
+  # IAM Role for Lambda function
+  DealScraperLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ResourcePrefix}-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Tags:
+        - Key: 'Project'
+          Value: 'MealSteals'
+        - Key: 'Component'
+          Value: 'DealScraper'
+    DeletionPolicy: Delete
+
+  # Lambda Function
+  DealScraperLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref ResourcePrefix
+      Description: 'MealSteals DealScraper Lambda function'
+      Role: !GetAtt DealScraperLambdaRole.Arn
+      PackageType: Image
+      Code:
+        ImageUri: !Ref DealScraperImageUri
+      MemorySize: 2048
+      Timeout: 300  # 5 minutes
+      Environment:
+        Variables:
+          ANTHROPIC_API_KEY_SECRET_ARN: !If
+            - UseImportedSecret
+            - !ImportValue 'mealsteals-base-infra-AnthropicApiKeySecretArn'
+            - !Ref AnthropicApiKeySecretArn
+          DEAL_TABLE_NAME: !ImportValue 'mealsteals-dealdb-DealsTableName'
+      Tags:
+        - Key: 'Project'
+          Value: 'MealSteals'
+        - Key: 'Component'
+          Value: 'DealScraper'
+    DependsOn:
+      - DealScraperLambdaRolePolicy
+      - DealScraperLambdaLogGroup
+    DeletionPolicy: Delete
+
+  # Lambda Event Source Mapping for SQS
+  DealScraperEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt DealScraperQueue.Arn
+      FunctionName: !GetAtt DealScraperLambda.Arn
+      Enabled: true
+      BatchSize: 1
+      MaximumBatchingWindowInSeconds: 0
+    DeletionPolicy: Delete
+
+Outputs:
+  DealScraperLambdaArn:
+    Description: 'ARN of the DealScraper Lambda function'
+    Value: !GetAtt DealScraperLambda.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-DealScraperLambdaArn'

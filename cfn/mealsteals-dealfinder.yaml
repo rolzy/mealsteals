@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'MealSteals DealFinder Lambda function infrastructure'
+
+Parameters:
+  DealFinderImageUri:
+    Type: String
+    Description: 'Image URI for the dealfinder docker image'
+  
+  GoogleApiKeySecretArn:
+    Type: String
+    Description: 'Secret ARN for the Google API key'
+    Default: ''
+  
+  ResourcePrefix:
+    Type: String
+    Description: 'Lambda function name for the dealfinder function'
+    Default: 'mealsteals-dealfinder'
+
+Conditions:
+  # Use imported secret ARN if GoogleApiKeySecretArn is not provided
+  UseImportedSecret: !Equals [!Ref GoogleApiKeySecretArn, '']
+
+Resources:
+  # CloudWatch Log Group for Lambda function
+  DealFinderLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ResourcePrefix}'
+      RetentionInDays: 14
+    DeletionPolicy: Delete
+
+  # IAM Policy for Lambda execution
+  DealFinderLambdaRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub '${ResourcePrefix}-lambda-role-policy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Resource: !Sub '${DealFinderLambdaLogGroup.Arn}:*'
+          - Effect: Allow
+            Action:
+              - 'secretsmanager:GetSecretValue'
+            Resource: !If
+              - UseImportedSecret
+              - !ImportValue 'mealsteals-base-infra-GoogleApiKeySecretArn'
+              - !Ref GoogleApiKeySecretArn
+      Roles:
+        - !Ref DealFinderLambdaRole
+
+  # IAM Role for Lambda function
+  DealFinderLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ResourcePrefix}-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Tags:
+        - Key: 'Project'
+          Value: 'MealSteals'
+        - Key: 'Component'
+          Value: 'DealFinder'
+    DeletionPolicy: Delete
+
+  # Lambda Function
+  DealFinderLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref ResourcePrefix
+      Description: 'MealSteals DealFinder Lambda function'
+      Role: !GetAtt DealFinderLambdaRole.Arn
+      PackageType: Image
+      Code:
+        ImageUri: !Ref DealFinderImageUri
+      MemorySize: 256
+      Timeout: 30
+      Environment:
+        Variables:
+          GOOGLE_API_KEY_SECRET_ARN: !If
+            - UseImportedSecret
+            - !ImportValue 'mealsteals-base-infra-GoogleApiKeySecretArn'
+            - !Ref GoogleApiKeySecretArn
+      Tags:
+        - Key: 'Project'
+          Value: 'MealSteals'
+        - Key: 'Component'
+          Value: 'DealFinder'
+    DependsOn:
+      - DealFinderLambdaRolePolicy
+      - DealFinderLambdaLogGroup
+    DeletionPolicy: Delete
+
+Outputs:
+  DealFinderLambdaArn:
+    Description: 'ARN of the DealFinder Lambda function'
+    Value: !GetAtt DealFinderLambda.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-DealFinderLambdaArn'

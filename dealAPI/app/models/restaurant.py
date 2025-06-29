@@ -34,11 +34,8 @@ class RestaurantModel(Model):
     """
 
     class Meta:
-        table_name = os.getenv("RESTAURANT_TABLE_NAME", "restaurants")
+        table_name = os.getenv("RESTAURANT_TABLE_NAME", "mealsteals-dealdb-restaurants")
         region = os.getenv("AWS_DEFAULT_REGION", "ap-southeast-2")
-        # Use local DynamoDB if running locally
-        # if os.getenv("ENVIRONMENT") == "local":
-        #    host = "http://dealdb:8000"
 
     # Primary key
     uuid = UnicodeAttribute(hash_key=True, default_for_new=lambda: str(uuid4()))

@@ -1,0 +1,145 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'MealSteals Base Infrastructure - Secrets Manager and ECR repositories'
+
+Parameters:
+  AnthropicApiKey:
+    Type: String
+    Description: 'Anthropic API key for Claude integration'
+    NoEcho: true
+    
+  GoogleApiKey:
+    Type: String
+    Description: 'Google Maps API key for restaurant search'
+    NoEcho: true
+
+Resources:
+  # Secrets Manager - Anthropic API Key
+  AnthropicApiKeySecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
+    Properties:
+      Name: anthropic_api_key
+      Description: 'Anthropic API key for Claude integration in DealScraper'
+      SecretString: !Ref AnthropicApiKey
+      
+  # Secrets Manager - Google API Key  
+  GoogleApiKeySecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
+    Properties:
+      Name: google_api_key
+      Description: 'Google Maps API key for restaurant search in DealFinder'
+      SecretString: !Ref GoogleApiKey
+
+  # ECR Repository - DealScraper
+  DealScraperECRRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    Properties:
+      RepositoryName: mealsteals-dealscraper
+      EmptyOnDelete: true
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep last 10 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      RepositoryPolicyText:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+  # ECR Repository - DealFinder
+  DealFinderECRRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    Properties:
+      RepositoryName: mealsteals-dealfinder
+      EmptyOnDelete: true
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep last 10 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      RepositoryPolicyText:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+
+Outputs:
+  # Secrets Manager Outputs - Using Ref which returns the ARN
+  AnthropicApiKeySecretArn:
+    Description: 'ARN of the Anthropic API key secret'
+    Value: !Ref AnthropicApiKeySecret
+    Export:
+      Name: !Sub '${AWS::StackName}-AnthropicApiKeySecretArn'
+      
+  GoogleApiKeySecretArn:
+    Description: 'ARN of the Google API key secret'
+    Value: !Ref GoogleApiKeySecret
+    Export:
+      Name: !Sub '${AWS::StackName}-GoogleApiKeySecretArn'
+      
+  # ECR Repository Outputs - Using GetAtt for specific attributes
+  DealScraperECRRepositoryUri:
+    Description: 'URI of the DealScraper ECR repository'
+    Value: !GetAtt DealScraperECRRepository.RepositoryUri
+    Export:
+      Name: !Sub '${AWS::StackName}-DealScraperECRRepositoryUri'
+      
+  DealFinderECRRepositoryUri:
+    Description: 'URI of the DealFinder ECR repository'
+    Value: !GetAtt DealFinderECRRepository.RepositoryUri
+    Export:
+      Name: !Sub '${AWS::StackName}-DealFinderECRRepositoryUri'
