@@ -465,3 +465,104 @@ dependencies = [
     "pytz>=2024.1",           # For timezone handling
 ]
 ```
+
+## Session Progress - June 29, 2025
+
+### 1. Deal Schema Enhancement - Nullable Prices
+**Issue**: Deal prices needed to support null values for deals where pricing isn't available
+**Solution**: Modified deal schemas to allow `Optional[Decimal]` for price field
+- Updated `DealBase`, `DealUpdate`, and `WebScrapedDealData` schemas
+- Added proper null handling in field validators
+- Updated DynamoDB model to support `null=True` for price attribute
+- Fixed repository layer to handle null price conversion properly
+
+### 2. Day of Week Normalization for LLM Variability
+**Issue**: LLM was producing non-deterministic day formats like "everyday", empty arrays, etc.
+**Solution**: Implemented robust day_of_week normalization in Pydantic schemas
+- Added comprehensive `@field_validator` for `day_of_week` fields
+- Handles variations: "everyday", "daily", "all week", empty lists, single strings
+- Maps abbreviated days: "Mon" → "monday", etc.
+- Defaults to all 7 days for unparseable input
+- Applied to both `DealBase` and `WebScrapedDealData` schemas
+
+### 3. Repository Layer Day Normalization
+**Issue**: Database was storing raw "everyday" strings that failed enum conversion
+**Solution**: Added `_normalize_days_from_db()` method in deal repository
+- Handles day string normalization when reading from DynamoDB
+- Converts "everyday" variants to full week array
+- Graceful error handling for unknown day strings
+- Consistent behavior between input validation and output conversion
+
+### 4. UUID Serialization Fix in Service Layer
+**Issue**: Service layer was passing UUID objects to repository methods expecting strings
+**Root Cause**: Inconsistent UUID handling between service and repository layers
+**Solution**: Fixed all UUID parameter passing in deal service
+- `get_by_uuid(deal_data.restaurant_id)` → `get_by_uuid(str(deal_data.restaurant_id))`
+- Applied fix to 4 different method calls in deal service
+- Ensures consistent string UUID handling across all repository calls
+
+### 5. New API Endpoint - Restaurants with Deals by Day
+**Feature**: Added endpoint to get restaurants with their deals for a specific day
+**Implementation**:
+- **Route**: `GET /api/v1/deals/restaurants-for-day/{day_of_week}`
+- **New Schemas**: 
+  - `RestaurantWithDealsForDay` - Restaurant + deals + day info
+  - `RestaurantsWithDealsForDayResponse` - Response wrapper with metadata
+- **Service Method**: `get_restaurants_with_deals_for_day()` in deal service
+- **Features**: Groups deals by restaurant, validates day enum, supports limit parameter
+- **Use Case**: "What restaurants have deals on Monday?" type queries
+
+### 6. Terraform to CloudFormation Migration
+**Decision**: Migrated from Terraform to CloudFormation for better AWS-native state management
+**Progress**: Created base infrastructure CloudFormation template
+- **File**: `cfn/mealsteals-base-infra.yaml`
+- **Resources**: 2 Secrets Manager secrets, 2 ECR repositories
+- **Features**: 
+  - Proper return value usage (`!Ref` for ARNs, `!GetAtt` for specific attributes)
+  - Cross-stack exports for all important values
+  - Image scanning and lifecycle policies on ECR repos
+  - Repository policies for push/pull access
+- **DeletionPolicy**: Set to `Delete` for clean automated cleanup
+- **Import Ready**: Configured for importing existing AWS resources
+
+### 7. Enhanced Deal Management Features
+**Filtering Improvements**:
+- Updated max_price filter to handle null prices properly
+- Enhanced search functionality with better null handling
+
+**Schema Robustness**:
+- All deal schemas now handle LLM output variability
+- Consistent normalization across input/output paths
+- Better error handling and logging
+
+### 8. Infrastructure as Code Improvements
+**CloudFormation Benefits**:
+- Native AWS state management
+- Better resource import capabilities
+- Cleaner cross-stack references with exports
+- Proper resource attribute usage instead of manual ARN construction
+
+## Current Architecture Status
+
+### Completed Features ✅
+1. **Deal Management**: Full CRUD with relationship support
+2. **Day Normalization**: Robust LLM output handling
+3. **Null Price Support**: Flexible pricing for various deal types
+4. **Restaurant-Deal Relationships**: One-to-many with GSI indexes
+5. **API Endpoints**: Comprehensive deal and restaurant management
+6. **CloudFormation Base**: Infrastructure as code foundation
+7. **UUID Handling**: Consistent serialization across all layers
+
+### Next Steps 🔄
+1. **Complete CloudFormation Migration**: Convert DealScraper and DealFinder modules
+2. **Deploy Infrastructure**: Import existing resources to CloudFormation management
+3. **Queue Service Fix**: Resolve SQS payload issues for Lambda integration
+4. **Testing**: Validate new day normalization and null price features
+5. **Performance Monitoring**: Track API response times with new features
+
+### Key Learnings from This Session
+1. **LLM Integration**: Flexible schema validation is crucial for non-deterministic AI outputs
+2. **UUID Consistency**: Service-repository layer contracts must be strictly enforced
+3. **CloudFormation**: Using proper return values is more reliable than manual construction
+4. **Error Handling**: Repository layer normalization prevents API failures from bad data
+5. **Schema Design**: Optional fields with smart defaults improve system robustness

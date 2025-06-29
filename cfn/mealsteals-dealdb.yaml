@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'MealSteals DynamoDB tables for restaurants and deals'
+
+Parameters:
+  ResourcePrefix:
+    Type: String
+    Description: 'Resource prefix for naming DynamoDB tables'
+    Default: 'mealsteals-dealdb'
+  
+  BillingMode:
+    Type: String
+    Description: 'DynamoDB billing mode'
+    Default: 'PAY_PER_REQUEST'
+    AllowedValues:
+      - 'PAY_PER_REQUEST'
+      - 'PROVISIONED'
+  
+  ReadCapacityUnits:
+    Type: Number
+    Description: 'Read capacity units (only used if BillingMode is PROVISIONED)'
+    Default: 5
+    MinValue: 1
+  
+  WriteCapacityUnits:
+    Type: Number
+    Description: 'Write capacity units (only used if BillingMode is PROVISIONED)'
+    Default: 5
+    MinValue: 1
+
+Conditions:
+  UseProvisionedBilling: !Equals [!Ref BillingMode, 'PROVISIONED']
+
+Resources:
+  # Restaurants Table
+  RestaurantsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${ResourcePrefix}-restaurants'
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        # Primary key
+        - AttributeName: uuid
+          AttributeType: S
+        # GSI key for gmaps_id lookups
+        - AttributeName: gmaps_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: uuid
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: gmaps-id-index
+          KeySchema:
+            - AttributeName: gmaps_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput: !If
+            - UseProvisionedBilling
+            - ReadCapacityUnits: !Ref ReadCapacityUnits
+              WriteCapacityUnits: !Ref WriteCapacityUnits
+            - !Ref AWS::NoValue
+      ProvisionedThroughput: !If
+        - UseProvisionedBilling
+        - ReadCapacityUnits: !Ref ReadCapacityUnits
+          WriteCapacityUnits: !Ref WriteCapacityUnits
+        - !Ref AWS::NoValue
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: 'Project'
+          Value: 'MealSteals'
+        - Key: 'Component'
+          Value: 'Database'
+        - Key: 'TableType'
+          Value: 'Restaurants'
+    DeletionPolicy: Delete
+
+  # Deals Table
+  DealsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${ResourcePrefix}-deals'
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        # Primary key
+        - AttributeName: uuid
+          AttributeType: S
+        # GSI keys for restaurant_id lookups
+        - AttributeName: restaurant_id
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: uuid
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: restaurant-id-index
+          KeySchema:
+            - AttributeName: restaurant_id
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput: !If
+            - UseProvisionedBilling
+            - ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
+            - !Ref AWS::NoValue
+      ProvisionedThroughput: !If
+        - UseProvisionedBilling
+        - ReadCapacityUnits: !Ref ReadCapacityUnits
+          WriteCapacityUnits: !Ref WriteCapacityUnits
+        - !Ref AWS::NoValue
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: 'Project'
+          Value: 'MealSteals'
+        - Key: 'Component'
+          Value: 'Database'
+        - Key: 'TableType'
+          Value: 'Deals'
+    DeletionPolicy: Delete
+
+Outputs:
+  RestaurantsTableName:
+    Description: 'Name of the restaurants DynamoDB table'
+    Value: !Ref RestaurantsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-RestaurantsTableName'
+
+  RestaurantsTableArn:
+    Description: 'ARN of the restaurants DynamoDB table'
+    Value: !GetAtt RestaurantsTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-RestaurantsTableArn'
+
+  DealsTableName:
+    Description: 'Name of the deals DynamoDB table'
+    Value: !Ref DealsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-DealsTableName'
+
+  DealsTableArn:
+    Description: 'ARN of the deals DynamoDB table'
+    Value: !GetAtt DealsTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-DealsTableArn'

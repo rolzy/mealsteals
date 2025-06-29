@@ -20,9 +20,9 @@ from ...schemas.deal import (
     DealSearchResponse,
     DealUpdate,
     DealWithRestaurant,
+    RestaurantsWithDealsForDayResponse,
     RestaurantWithDeals,
     RestaurantWithDealsForDay,
-    RestaurantsWithDealsForDayResponse,
 )
 from ...services.deal_service import DealService
 
@@ -315,7 +315,10 @@ async def get_deals_by_day(
         )
 
 
-@router.get("/restaurants-for-day/{day_of_week}", response_model=RestaurantsWithDealsForDayResponse)
+@router.get(
+    "/restaurants-for-day/{day_of_week}",
+    response_model=RestaurantsWithDealsForDayResponse,
+)
 async def get_restaurants_with_deals_for_day(
     day_of_week: DayOfWeek,
     limit: Optional[int] = Query(
@@ -324,14 +327,14 @@ async def get_restaurants_with_deals_for_day(
 ):
     """
     Get all restaurants that have deals for a specific day of the week
-    
+
     This endpoint returns restaurants along with their deals for the specified day.
     Useful for showing "What's available on Monday?" type queries.
-    
+
     Args:
         day_of_week: The day of the week to search for (monday, tuesday, etc.)
         limit: Maximum number of restaurants to return
-        
+
     Returns:
         RestaurantsWithDealsForDayResponse containing:
         - message: Summary message
@@ -341,11 +344,15 @@ async def get_restaurants_with_deals_for_day(
     """
     try:
         logger.info(f"Fetching restaurants with deals for {day_of_week}")
-        return deal_service.get_restaurants_with_deals_for_day(day_of_week.value, limit=limit)
+        return deal_service.get_restaurants_with_deals_for_day(
+            day_of_week.value, limit=limit
+        )
     except BadRequestException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        logger.error(f"Error fetching restaurants with deals for {day_of_week}: {str(e)}")
+        logger.error(
+            f"Error fetching restaurants with deals for {day_of_week}: {str(e)}"
+        )
         raise InternalServerErrorException(
             f"Failed to fetch restaurants with deals for {day_of_week}: {str(e)}"
         )

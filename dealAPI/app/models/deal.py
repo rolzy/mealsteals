@@ -32,7 +32,7 @@ class DealModel(Model):
     """DynamoDB model for deals"""
 
     class Meta:
-        table_name = os.getenv("DEAL_TABLE_NAME", "deals")
+        table_name = os.getenv("DEAL_TABLE_NAME", "mealsteals-dealdb-deals")
         region = os.getenv("AWS_DEFAULT_REGION", "ap-southeast-2")
 
     # Primary key
@@ -66,8 +66,12 @@ class DealModel(Model):
             "uuid": self.uuid,
             "restaurant_id": self.restaurant_id,
             "dish": self.dish,
-            "price": Decimal(str(self.price)) if self.price is not None else None,  # Handle null prices
-            "day_of_week": list(self.day_of_week) if self.day_of_week else [],  # Convert to list
+            "price": Decimal(str(self.price))
+            if self.price is not None
+            else None,  # Handle null prices
+            "day_of_week": list(self.day_of_week)
+            if self.day_of_week
+            else [],  # Convert to list
             "notes": self.notes,
             "created_at": self.created_at,
             "updated_at": self.updated_at,

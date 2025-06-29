@@ -1,26 +1,4 @@
 services:
-  dealdb:
-    container_name: mealsteals-dealDB
-    image: amazon/dynamodb-local:latest
-    command: -jar DynamoDBLocal.jar -sharedDb -dbPath ./data
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./docker/dynamodb:/home/dynamodblocal/data
-    networks:
-      - app-network
-    user: root
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'if [ "$(curl -s -o /dev/null -I -w ''%{http_code}'' http://localhost:8000)" == "400" ]; then exit 0; else exit 1; fi',
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    working_dir: /home/dynamodblocal
-
   dealapi:
     container_name: mealsteals-dealAPI
     build:
@@ -32,9 +10,8 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
       - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-ap-southeast-2}
-      - ENVIRONMENT=local
-      - RESTAURANT_TABLE_NAME=${RESTAURANT_TABLE_NAME:-restaurants}
-      - DEAL_TABLE_NAME=${DEAL_TABLE_NAME:-deals}
+      - RESTAURANT_TABLE_NAME=${RESTAURANT_TABLE_NAME:-mealsteals-dealdb-restaurants}
+      - DEAL_TABLE_NAME=${DEAL_TABLE_NAME:-mealsteals-dealdb-deals}
       - DEAL_SCRAPING_QUEUE_URL=${DEAL_SCRAPING_QUEUE_URL:-https://sqs.ap-southeast-2.amazonaws.com/700723066985/mealsteals-dealscraper-queue}
     ports:
       - "5000:5000"
@@ -43,9 +20,6 @@ services:
       - ./dealAPI/.venv:/code/.venv
     networks:
       - app-network
-    depends_on:
-      dealdb:
-        condition: service_healthy
   
   dealmapper:
     container_name: mealsteals-dealMapper

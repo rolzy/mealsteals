@@ -11,3 +11,7 @@ env/
 
 # Directories
 **/.terraform
+
+# Build states
+.last_dealfinder_build
+.last_dealscraper_build
